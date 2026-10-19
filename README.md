@@ -38,7 +38,7 @@ Run `node --check docs/app.js`, `node --check docs/auth.js`, and `node --test te
 
 Run the full regression suite with `node --test tests/*.test.cjs`.
 
-Task text size can be adjusted with the +/− controls above the list. The choice is saved in this browser. Cleared Google tasks are excluded from insertion and movement references; move arrows follow visible tasks.
+Task text size can be adjusted with the +/− controls inside Display & help in the sidebar (collapsed by default). The choice is saved in this browser. Cleared Google tasks are excluded from insertion and movement references; move arrows follow visible tasks.
 
 ## Shortcuts
 
@@ -49,6 +49,7 @@ Task text size can be adjusted with the +/− controls above the list. The choic
 - Alt + Enter (or Ctrl/Cmd + Shift + Enter): complete / reopen the focused task
 - Ctrl/Cmd + C with no text highlighted: copy the whole focused task title; highlighted text copies normally
 - Each task also has a Copy text button
+- Alt + L: open the list picker; arrow keys select a list, Enter opens it, Esc cancels
 - N: focus new task field when not editing
 - ?: show shortcuts
 

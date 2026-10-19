@@ -43,3 +43,25 @@ dialog a,.quick input,.quick input::placeholder{color:#000}
 @media(max-width:650px){#tasks{padding:0 8px 12px}.row.child{margin-left:16.1px;padding-left:23px}.row.child:before{left:8px}}
 
 main>header{justify-content:flex-end;margin-bottom:20px}
+
+.workspace{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+#picklist{font-size:21px;letter-spacing:0;width:30px;height:30px;color:#000}
+.sidebar-settings{margin:0 0 14px}
+.sidebar-settings summary{cursor:pointer;padding:9px 12px;font-size:12px;list-style:none;border-radius:7px}
+.sidebar-settings summary::-webkit-details-marker{display:none}
+.sidebar-settings summary:after{content:'⌄';float:right}
+.sidebar-settings[open] summary:after{content:'⌃'}
+.sidebar-settings summary:focus-visible{outline:2px solid #39735c}
+.sidebar-settings .header-actions{display:flex;flex-wrap:wrap;gap:6px;padding:8px 0;align-items:center}
+.sidebar-settings .font-controls{flex-wrap:wrap;gap:3px;max-width:100%}
+.sidebar-settings .font-controls>span{display:block;width:100%;padding:3px 5px}
+.sidebar-settings #help{margin:0;color:#000;flex-shrink:0}
+#listpicker{width:560px;padding:14px;border:1px solid #d1dbd0;border-radius:22px;background:#fafcf9;box-shadow:0 24px 90px #142e3540}
+#listpicker::backdrop{background:#13251e66;backdrop-filter:blur(7px)}
+#listchoices{display:grid;gap:8px;max-height:70vh;overflow:auto;padding:4px}
+.list-choice{display:flex;align-items:center;gap:16px;width:100%;padding:20px;text-align:left;font-size:18px;font-weight:600;background:#fff;border:2px solid transparent;border-radius:13px;color:#000;overflow-wrap:anywhere}
+.list-choice:before{content:'';width:12px;height:28px;flex-shrink:0;border-radius:5px;background:var(--group-color)}
+.list-choice[aria-current=true]{background:var(--group-bg)}
+.list-choice:focus{outline:none;border-color:var(--group-color);background:var(--group-bg);box-shadow:0 3px 12px #243c2312}
+.list-choice:hover{background:var(--group-bg)}
+@media(max-width:650px){.workspace{display:flex;margin:18px 0 5px}.sidebar-settings{margin-bottom:4px}.sidebar-settings .font-controls>span{width:auto}#listchoices{max-height:65vh}.list-choice{padding:16px;font-size:16px}}
