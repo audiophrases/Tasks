@@ -3,7 +3,7 @@
 function siblingTasks(parent, {visible = false} = {}) {
   return tasks().filter(task =>
     (task.parent || '') === (parent || '') && !task.deleted &&
-    (!visible || (!task.hidden && (showCompleted || task.status !== 'completed')))
+    (!visible || (!task.hidden && visibleTasks().includes(task)))
   );
 }
 

@@ -18,6 +18,7 @@ function harness(options = {}) {
     run(fn){work=fn();return work;},
     async patch(value,changes){patches.push(changes);Object.assign(value,changes);},
     ordered(){return [task];},focus(){},$(){return {focus(){}};},
+    visibleTasks(){return options.archived || task.status!=='completed' ? [task] : [];},
   };
   vm.createContext(context);vm.runInContext(fs.readFileSync('docs/task-actions.js','utf8'),context);
   return {context,task,input,target,copied,messages,patches,

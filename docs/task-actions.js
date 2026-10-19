@@ -42,10 +42,10 @@ function handleTaskShortcut(event) {
       ...(title && title !== task.title ? {title} : {}),
       status: task.status === 'completed' ? 'needsAction' : 'completed',
     });
-    if (!showCompleted && task.status === 'completed') {
-      const visible = ordered().filter(item => item.status !== 'completed');
+    const visible = visibleTasks();
+    if (!visible.includes(task)) {
       const index = ordered().indexOf(task);
-      const next = ordered().slice(index + 1).find(item => item.status !== 'completed') || visible.at(-1);
+      const next = ordered().slice(index + 1).find(item => visible.includes(item)) || visible.at(-1);
       if (next) focus(next.id);
       else $('#quick').focus();
     }

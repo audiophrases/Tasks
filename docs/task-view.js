@@ -8,7 +8,10 @@ function taskDisplayGroups(items, includeCompleted) {
   }
   const groups = [];
   let archive;
-  for (const family of families.values()) {
+  const roots = items.filter(task => !task.deleted && !task.parent).map(task => task.id);
+  const order = [...roots, ...[...families.keys()].filter(id => !roots.includes(id))];
+  for (const id of order) {
+    const family = families.get(id);
     family.sort((a, b) => Number(Boolean(a.parent)) - Number(Boolean(b.parent)));
     const root = family.find(task => !task.parent);
     if (!archive && root?.title.trim().toLowerCase() === 'archive') {

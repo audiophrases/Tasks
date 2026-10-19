@@ -15,7 +15,7 @@ function harness(items, options = {}) {
       calls.push({path:'/lists/list/tasks'+(op.kind==='move'?'/'+op.id+'/move':'')+'?'+query,op});
     },
   };
-  vm.createContext(context);vm.runInContext(fs.readFileSync('docs/task-order.js','utf8'),context);
+  vm.createContext(context);vm.runInContext(fs.readFileSync('docs/task-view.js','utf8'),context);vm.runInContext(fs.readFileSync('docs/task-order.js','utf8'),context);
   return {context,calls,items};
 }
 const task=(id,extra={})=>({id,title:id,status:'needsAction',...extra});
@@ -97,4 +97,20 @@ test('subtasks cross group boundaries while remaining subtasks',async()=>{
   assert.equal(query.get('parent'),'p');
   await h.context.reorder(a,-1);
   assert.equal(h.calls.length,2);
+});
+
+test('a new subtask can be blank while accidental empty quick-adds are ignored',async()=>{
+  const h=harness([task('parent')]);
+  await h.context.add('','parent',undefined,{allowEmpty:true});
+  assert.equal(h.items[1].title,'');assert.equal(h.items[1].parent,'parent');
+  assert.equal(h.calls[0].op.title,'');
+  await h.context.add('  ');
+  assert.equal(h.items.length,2);assert.equal(h.calls.length,1);
+});
+
+test('archived completed roots participate in visible reorder without changing their children',async()=>{
+  const h=harness([task('archive',{title:'Archive'}),task('a'),task('c',{parent:'a',status:'completed'}),task('b',{status:'completed'})]);
+  await h.context.reorder(h.items.find(item=>item.id==='a'),1);
+  assert.equal(h.calls[0].op.previous,'b');
+  assert.equal(h.items.find(item=>item.id==='c').parent,'a');
 });

@@ -109,8 +109,59 @@ test('refresh leaves an active editor and its draft untouched',async()=>{
   assert.equal(h.context.document.activeElement.value,'Uncommitted draft');
 });
 
-test('deletes disappear immediately and finish in the background',async()=>{
+test('delete creates Deleted once, keeps the current list, and moves tasks without destructive requests',async()=>{
   const h=harness();await h.context.run(()=>h.context.deleteTask(h.eval('tasks()[0]')));
-  assert.equal(h.eval('tasks().length'),1);assert.equal(h.calls[0].method,'DELETE');
-  h.calls[0].resolve(null);await tick();assert.equal(h.eval('syncPending()'),false);
+  assert.equal(h.eval('tasks().length'),1);assert.equal(h.eval('list'),'L');
+  const deleted=h.eval("data.lists.find(item=>item.title==='Deleted')");
+  assert.equal(h.eval('data.tasks["'+deleted.id+'"][0].title'),'A');
+  await h.context.run(()=>h.context.deleteTask(h.eval('tasks()[0]')));
+  assert.equal(h.eval("data.lists.filter(item=>item.title==='Deleted').length"),1);
+  assert.equal(h.calls[0].path,'/users/@me/lists');
+  h.calls[0].resolve({id:'google-deleted'});await tick();
+  assert.match(h.calls[1].path,/\/lists\/L\/tasks\/a\/move\?destinationTasklist=google-deleted$/);
+  h.calls[1].resolve({id:'a'});await tick();
+  h.calls[2].resolve({id:'b'});await tick();
+  assert.equal(h.eval('syncPending()'),false);
+  assert.ok(h.calls.every(call=>call.method!=='DELETE'));
+});
+
+test('delete reuses Deleted and keeps completed and cleared subtasks with their parent',async()=>{
+  const h=harness();
+  h.eval("data.lists.push({id:'D',title:'Deleted'});data.tasks.D=[];tasks().push({id:'c',parent:'a',title:'Done child',status:'completed',hidden:true,notes:'Keep notes'})");
+  await h.context.run(()=>h.context.deleteTask(h.eval('tasks()[0]')));
+  assert.equal(h.eval('data.tasks.D.length'),2);assert.equal(h.eval('data.tasks.D[1].parent'),'a');
+  assert.equal(h.eval('data.tasks.D[1].notes'),'Keep notes');assert.equal(h.eval('data.tasks.D[1].status'),'completed');
+  assert.match(h.calls[0].path,/destinationTasklist=D/);
+  h.calls[0].resolve({id:'a'});await tick();
+  h.eval("list='D'");await h.context.run(()=>h.context.deleteTask(h.eval('tasks()[0]')));
+  assert.equal(h.calls.length,1);assert.equal(h.eval('tasks().length'),2);
+});
+
+test('deleting a subtask promotes it in Deleted and preserves its siblings',async()=>{
+  const h=harness();
+  h.eval("data.lists.push({id:'D',title:'Deleted'});data.tasks.D=[];tasks()[1].parent='a'");
+  await h.context.run(()=>h.context.deleteTask(h.eval('tasks()[1]')));
+  assert.equal(h.eval('tasks()[0].id'),'a');assert.equal(h.eval('data.tasks.D[0].parent'),undefined);
+  assert.equal(new URLSearchParams(h.calls[0].path.split('?')[1]).has('parent'),false);
+  h.calls[0].resolve({id:'moved-b'});await tick();
+  h.eval("list='D'");await h.context.run(()=>h.context.patch(h.eval('tasks()[0]'),{title:'Edited in Deleted'}));
+  assert.equal(h.calls[1].path,'/lists/D/tasks/moved-b');
+  h.calls[1].resolve({});await tick();
+});
+
+test('failed moves stay in the outbox and retry recognizes a move that already reached Deleted',async()=>{
+  const h=harness();h.eval("data.lists.push({id:'D',title:'Deleted'});data.tasks.D=[]");
+  await h.context.run(()=>h.context.deleteTask(h.eval('tasks()[0]')));
+  h.calls[0].reject(Error('Connection lost'));await tick();
+  assert.equal(h.eval('data.tasks.D[0].title'),'A');assert.ok(h.storage.has('taskflow-outbox:L'));
+  h.context.retrySync();h.calls[1].reject(Object.assign(Error('Moved already'),{status:404}));await tick();
+  assert.equal(h.calls[2].path,'/lists/D/tasks/a');
+  h.calls[2].resolve({id:'a'});await tick();assert.equal(h.eval('syncPending()'),false);
+});
+
+test('legacy pending deletes also move to Deleted',async()=>{
+  const h=harness();h.eval("data.lists.push({id:'D',title:'Deleted'});data.tasks.D=[]");
+  h.context.enqueueSync({kind:'delete',listId:'L',id:'a'});
+  assert.match(h.calls[0].path,/move\?destinationTasklist=D$/);
+  h.calls[0].resolve({id:'a'});await tick();assert.equal(h.eval('syncPending()'),false);
 });

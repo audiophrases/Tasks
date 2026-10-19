@@ -52,7 +52,12 @@ async function sendSyncOperation(op){
   const taskPath=path+'/'+encodeURIComponent(remoteId(op.id));
   if(op.kind==='moveToList'){
     query.set('destinationTasklist',remoteId(op.destinationListId));
-    return api(taskPath+'/move?'+query,'POST');
+    try{return await api(taskPath+'/move?'+query,'POST');}
+    catch(error){
+      if(error.status!==404)throw error;
+      // A previous attempt may have moved it before the connection dropped.
+      return api('/lists/'+encodeURIComponent(remoteId(op.destinationListId))+'/tasks/'+encodeURIComponent(remoteId(op.id)));
+    }
   }
   if(op.kind==='move')return api(taskPath+'/move?'+query,'POST');
   if(op.kind==='patch')return api(taskPath,'PATCH',op.changes);
