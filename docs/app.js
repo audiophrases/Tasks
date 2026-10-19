@@ -11,7 +11,7 @@ function renderTaskGroups(visible){
     if(!groups.has(id))groups.set(id,[]);
     groups.get(id).push(task);
   }
-  return [...groups.values()].map((group,index)=>`<div class="task-group group-${index%6}">${group.map(renderTaskRow).join('')}</div>`).join('');
+  return [...groups.values()].map((group,index)=>`<div class="task-group group-${index%7}">${group.map(renderTaskRow).join('')}</div>`).join('');
 }
 function render(){if(!token){data={lists:[],tasks:{}};list=null;selected=null;}$('#quick').disabled=!token||!list;$('#newlist').disabled=!token;$('#connection').textContent=token?'Google Tasks connected':'Not signed in';$('#connect').innerHTML=token?'Google connection <span>✓</span>':'Connect Google Tasks <span>↗</span>';$('#status').textContent=token?'Synced with Google Tasks':'Sign in to view your tasks';$('#lists').innerHTML=data.lists.map(l=>`<button data-list="${esc(l.id)}" class="${l.id===list?'active':''}"><span>☷</span>${esc(l.title)}<span>${(data.tasks[l.id]||[]).filter(t=>t.status!=='completed').length}</span></button>`).join('');$('#listtitle').textContent=data.lists.find(l=>l.id===list)?.title||'Tasks';$('#count').textContent=tasks().filter(t=>t.status!=='completed').length;const visible=ordered().filter(t=>showCompleted||t.status!=='completed');$('#empty').hidden=!token||visible.length>0;$('#tasks').innerHTML=renderTaskGroups(visible);$('#togglecompleted').textContent=showCompleted?'Hide completed':'Show completed';}
 function focus(id){selected=id;render();const input=[...document.querySelectorAll('.row')].find(r=>r.dataset.id===id)?.querySelector('input');input?.focus()}
