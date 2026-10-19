@@ -68,7 +68,19 @@ async function move(task, parent, previous) {
 async function reorder(task, direction) {
   const siblings = siblingTasks(task.parent, {visible:true});
   const index = siblings.indexOf(task), target = index + direction;
-  if (index < 0 || target < 0 || target >= siblings.length) return;
+  if (index < 0) return;
+  if (target < 0 || target >= siblings.length) {
+    if (!task.parent) return;
+    // At a group's edge, keep the task indented and move to the adjacent parent.
+    const roots = siblingTasks(undefined, {visible:true});
+    const parentIndex = roots.findIndex(root => root.id === task.parent);
+    if (parentIndex < 0) return;
+    const parent = roots[parentIndex + direction];
+    if (!parent) return;
+    const previous = direction < 0 ? siblingTasks(parent.id, {visible:true}).at(-1)?.id : undefined;
+    await move(task, parent.id, previous);
+    return;
+  }
   const previous = direction < 0 ? siblings[index - 2]?.id : siblings[index + 1].id;
   await move(task, task.parent, previous);
 }

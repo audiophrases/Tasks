@@ -45,7 +45,7 @@ Task text size can be adjusted with the +/− controls above the list. The choic
 - Enter: add next task
 - Ctrl/Cmd + Enter: add subtask
 - Tab / Shift + Tab at the start of a task title: indent / outdent
-- Alt + Up / Down: reorder
+- Alt + Up / Down: reorder; subtasks move within their group and into the adjacent parent group at a boundary
 - Alt + Enter (or Ctrl/Cmd + Shift + Enter): complete / reopen the focused task
 - Ctrl/Cmd + C with no text highlighted: copy the whole focused task title; highlighted text copies normally
 - Each task also has a Copy text button

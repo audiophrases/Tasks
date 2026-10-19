@@ -21,20 +21,22 @@ dialog .remember-hint{font-size:11px;line-height:1.5;margin:5px 0 18px}
 .tip,.tip strong,.tip p,footer,dialog,dialog p,dialog li,#empty,.font-controls,
 dialog a,.quick input,.quick input::placeholder{color:#000}
 #tasks{padding:0 16px 16px}
-.row{--group-color:#276749;--group-bg:#f1f8f3;border:3px solid var(--group-color);border-radius:9px;margin-top:14px;background:var(--group-bg)}
-.group-0{--group-color:#276749;--group-bg:#f1f8f3}
-.group-1{--group-color:#275dad;--group-bg:#f0f5ff}
-.group-2{--group-color:#8646a3;--group-bg:#f8f2fc}
-.group-3{--group-color:#a45b16;--group-bg:#fff7ed}
-.group-4{--group-color:#a33352;--group-bg:#fff1f5}
-.group-5{--group-color:#147078;--group-bg:#effafb}
-.row.child{border-width:2px;margin-top:6px;margin-left:24px;padding-left:28px}
+.task-group{--group-color:#215bb5;--group-bg:#eaf2ff;border:3px solid var(--group-color);border-radius:10px;margin-top:14px;padding-bottom:8px;background:var(--group-bg)}
+.task-group.group-0{--group-color:#215bb5;--group-bg:#eaf2ff}
+.task-group.group-1{--group-color:#ac4c00;--group-bg:#fff0d9}
+.task-group.group-2{--group-color:#7136a8;--group-bg:#f3e8ff}
+.task-group.group-3{--group-color:#237044;--group-bg:#e5f5e9}
+.task-group.group-4{--group-color:#ae2857;--group-bg:#ffe8f0}
+.task-group.group-5{--group-color:#736000;--group-bg:#f8f4cf}
+.row{border:0;border-radius:7px;margin:0;background:transparent}
+.task-group>.row:not(.child):last-child{margin-bottom:-8px}
+.row.child{border:2px solid var(--group-color);margin:6px 8px 0 27.6px;padding-left:28px;background:#ffffff80}
 .row.child:before{left:12px;color:var(--group-color)}
 .title,.row.child .title,.completed .title{color:#000;opacity:1}
 .title{font-weight:700}
 .row.child .title{font-weight:500}
-.row.selected,.row:focus-within{background:var(--group-bg);box-shadow:0 0 0 2px #000}
+.row.selected,.row:focus-within{background:#ffffffb3;box-shadow:inset 0 0 0 2px #000}
 .grip,.actions button{color:#000}
 .check{border:2px solid var(--group-color);background:#fff}
 .check.done{background:var(--group-color);border-color:var(--group-color);color:#fff}
-@media(max-width:650px){#tasks{padding:0 8px 12px}.row.child{margin-left:14px;padding-left:23px}.row.child:before{left:8px}}
+@media(max-width:650px){#tasks{padding:0 8px 12px}.row.child{margin-left:16.1px;padding-left:23px}.row.child:before{left:8px}}

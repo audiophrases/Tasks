@@ -68,3 +68,31 @@ test('cleared parents cannot be used for new subtasks',async()=>{
   await assert.rejects(h.context.add('New','hidden'),/parent task/);
   assert.equal(h.calls.length,0);
 });
+
+test('subtasks reorder both directions with Google sibling anchors',async()=>{
+  const h=harness([task('p'),task('a',{parent:'p'}),task('b',{parent:'p'}),task('c',{parent:'p'})]);
+  const b=h.items.find(t=>t.id==='b');
+  await h.context.reorder(b,-1);
+  let query=new URLSearchParams(h.calls[0].path.split('?')[1]);
+  assert.equal(query.get('parent'),'p');assert.equal(query.has('previous'),false);
+  assert.deepEqual(h.items.filter(t=>t.parent==='p').map(t=>t.id),['b','a','c']);
+  await h.context.reorder(b,1);
+  query=new URLSearchParams(h.calls[1].path.split('?')[1]);
+  assert.equal(query.get('parent'),'p');assert.equal(query.get('previous'),'a');
+  assert.deepEqual(h.items.filter(t=>t.parent==='p').map(t=>t.id),['a','b','c']);
+});
+
+test('subtasks cross group boundaries while remaining subtasks',async()=>{
+  const h=harness([task('p'),task('a',{parent:'p'}),task('q'),task('b',{parent:'q'})]);
+  const a=h.items.find(t=>t.id==='a');
+  await h.context.reorder(a,1);
+  assert.equal(a.parent,'q');
+  let query=new URLSearchParams(h.calls[0].path.split('?')[1]);
+  assert.equal(query.get('parent'),'q');assert.equal(query.has('previous'),false);
+  await h.context.reorder(a,-1);
+  assert.equal(a.parent,'p');
+  query=new URLSearchParams(h.calls[1].path.split('?')[1]);
+  assert.equal(query.get('parent'),'p');
+  await h.context.reorder(a,-1);
+  assert.equal(h.calls.length,2);
+});

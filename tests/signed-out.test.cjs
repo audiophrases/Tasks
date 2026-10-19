@@ -33,3 +33,15 @@ test('restored Google session skips login and enables the real workspace',async(
   vm.runInContext('token=null;render()',h.context);
   assert.equal(h.$('#lists').innerHTML,'');assert.equal(h.$('#tasks').innerHTML,'');
 });
+
+test('parent frames wrap their children and neighboring groups use distinct colors',()=>{
+  const h=harness();
+  const html=vm.runInContext(`renderTaskGroups([
+    {id:'p',title:'Parent'},{id:'c',title:'Child',parent:'p'},
+    {id:'q',title:'Next parent'},{id:'r',title:'Third parent'}
+  ])`,h.context);
+  assert.equal((html.match(/class="task-group /g)||[]).length,3);
+  assert.match(html,/task-group group-0/);assert.match(html,/task-group group-1/);assert.match(html,/task-group group-2/);
+  assert.ok(html.indexOf('data-id="c"')<html.indexOf('task-group group-1'));
+  assert.equal((html.match(/class="row /g)||[]).length,4);
+});
