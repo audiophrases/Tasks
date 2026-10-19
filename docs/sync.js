@@ -2,7 +2,11 @@
 let syncQueue=[],syncRunning=false,syncFailure=null,syncRevision=0,syncScope=null;
 const syncAliases=new Map();
 const syncPending=()=>syncQueue.length>0;
-const remoteId=id=>syncAliases.get(id)||id;
+function remoteId(id){
+  const seen=new Set();
+  while(syncAliases.has(id)&&!seen.has(id)){seen.add(id);id=syncAliases.get(id);}
+  return id;
+}
 function updateSyncStatus(){
   const status=document.querySelector('#status'),retry=document.querySelector('#retrysync');
   if(status)status.textContent=syncFailure?'Changes waiting to sync':syncPending()?'Syncing…':token?'Synced with Google Tasks':'Sign in to view your tasks';
@@ -46,10 +50,21 @@ async function sendSyncOperation(op){
   if(op.previous)query.set('previous',remoteId(op.previous));
   if(op.kind==='create')return api(path+'?'+query,'POST',{title:op.title});
   const taskPath=path+'/'+encodeURIComponent(remoteId(op.id));
+  if(op.kind==='moveToList'){
+    query.set('destinationTasklist',remoteId(op.destinationListId));
+    return api(taskPath+'/move?'+query,'POST');
+  }
   if(op.kind==='move')return api(taskPath+'/move?'+query,'POST');
   if(op.kind==='patch')return api(taskPath,'PATCH',op.changes);
   if(op.kind==='delete'){
-    try{return await api(taskPath,'DELETE');}catch(error){if(error.status!==404)throw error;}
+    // Old browser outboxes must also use the new, recoverable behavior.
+    let destination=data.lists.find(item=>item.title.trim().toLowerCase()==='deleted');
+    if(!destination){
+      destination=await api('/users/@me/lists','POST',{title:'Deleted'});
+      data.lists.push(destination);data.tasks[destination.id]=[];
+    }
+    op.kind='moveToList';op.destinationListId=destination.id;saveSyncDraft();
+    return sendSyncOperation(op);
   }
 }
 async function flushSync(){
@@ -62,6 +77,10 @@ async function flushSync(){
       const result=await sendSyncOperation(op);
       if(op.kind==='create'||op.kind==='createList'){
         if(!result?.id)throw Error('Google did not return an ID for the new item.');
+        syncAliases.set(op.id,result.id);
+      }
+      if(op.kind==='moveToList'&&result?.id&&result.id!==remoteId(op.id)){
+        syncAliases.set(remoteId(op.id),result.id);
         syncAliases.set(op.id,result.id);
       }
       // Responses acknowledge writes; they must not replace newer local edits.

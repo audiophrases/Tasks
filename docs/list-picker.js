@@ -1,9 +1,6 @@
 // Preview every list as a column; Left/Right cycle between lists.
 function listTaskPreview(id){
-  const items=(data.tasks[id]||[]).filter(task=>!task.hidden&&!task.deleted&&(showCompleted||task.status!=='completed'));
-  const groups=new Map();
-  for(const task of items){const root=task.parent||task.id;if(!groups.has(root))groups.set(root,[]);groups.get(root).push(task);}
-  return [...groups.values()].map((group,index)=>`<div class="preview-group task-group group-${index%7}">${group.sort((a,b)=>Number(Boolean(a.parent))-Number(Boolean(b.parent))).map(task=>`<div class="preview-task ${task.parent?'preview-child':''} ${task.status==='completed'?'preview-completed':''}"><span class="preview-check" aria-hidden="true">${task.status==='completed'?'✓':''}</span><span>${esc(task.title)}</span></div>`).join('')}</div>`).join('');
+  return taskDisplayGroups(data.tasks[id]||[],showCompleted).map((group,index)=>`<div class="preview-group task-group group-${index%7} ${group.archived?'archive-group':''}">${group.tasks.map(task=>`<div class="preview-task ${task.parent||group.archived&&task.id!==group.marker?'preview-child':''} ${group.archived&&task.parent?'preview-archive-subtask':''} ${task.status==='completed'?'preview-completed':''}"><span class="preview-check" aria-hidden="true">${task.status==='completed'?'✓':''}</span><span>${esc(task.title)}</span></div>`).join('')}</div>`).join('');
 }
 function openListPicker(){
   if(busy||$('#modal').open||$('#listpicker').open)return;

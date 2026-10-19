@@ -15,7 +15,7 @@ function harness(storage=new Map()){
     setTimeout:()=>1,clearTimeout(){},confirm:()=>true,
   };
   vm.createContext(context);
-  for(const name of ['sync','task-order','app'])vm.runInContext(fs.readFileSync('docs/'+name+'.js','utf8'),context);
+  for(const name of ['sync','task-view','task-order','app'])vm.runInContext(fs.readFileSync('docs/'+name+'.js','utf8'),context);
   context.notify=message=>messages.push(message);
   context.api=async(path,method,body)=>{const request=deferred();calls.push({path,method,body,...request});return request.promise;};
   vm.runInContext("token='access';data={lists:[{id:'L',title:'Real list'},{id:'Other',title:'Other list'}],tasks:{L:[{id:'a',title:'A',status:'needsAction'},{id:'b',title:'B',status:'needsAction'}],Other:[]}};list='L';data=restoreSyncDraft(data)||data;render()",context);

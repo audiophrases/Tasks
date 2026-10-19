@@ -10,7 +10,7 @@ function harness(){
   const elements={'#listpicker':dialog,'#listchoices':{},'#picklist':{},'#modal':{open:false}};
   context.$=s=>elements[s];
   context.document={activeElement:null,querySelector:()=>first,addEventListener:(name,fn)=>listeners[name]=fn};
-  vm.createContext(context);vm.runInContext(fs.readFileSync('docs/list-picker.js','utf8'),context);
+  vm.createContext(context);vm.runInContext(fs.readFileSync('docs/task-view.js','utf8'),context);vm.runInContext(fs.readFileSync('docs/list-picker.js','utf8'),context);
   const key=(key,extra={})=>{let prevented=false;listeners.keydown({key,preventDefault(){prevented=true;},...extra});return prevented;};
   return {context,dialog,choices,elements,key};
 }

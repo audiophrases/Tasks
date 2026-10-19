@@ -21,8 +21,8 @@ function validateParent(parent) {
   if (!task) throw Error('That parent task is no longer available. Refresh the list and try again.');
 }
 
-async function add(title, parent, previous) {
-  if (!title.trim()) return;
+async function add(title, parent, previous, {allowEmpty = false} = {}) {
+  if (!title.trim() && !(allowEmpty && parent)) return;
   validateParent(parent);
   previous = previousAnchor(parent, previous);
   const task = {id:'pending:'+uid(),title:title.trim(),status:'needsAction',...(parent ? {parent} : {})};

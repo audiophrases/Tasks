@@ -12,7 +12,7 @@ function harness(restore=false){
     restoreGoogleSession:async()=>{if(restore)vm.runInContext("token='restored';data={lists:[{id:'google',title:'Real list'}],tasks:{google:[]}};list='google';render()",context);},
   };
   vm.createContext(context);
-  vm.runInContext(fs.readFileSync('docs/app.js','utf8'),context);
+  vm.runInContext(fs.readFileSync('docs/task-view.js','utf8'),context);vm.runInContext(fs.readFileSync('docs/app.js','utf8'),context);
   return {context,$,get prompts(){return prompts;}};
 }
 

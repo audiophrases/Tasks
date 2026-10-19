@@ -92,3 +92,10 @@ textarea.title{display:block;resize:none;overflow:hidden;white-space:pre-wrap;ov
 .row>.grip,.row>.check,.row>.actions{align-self:flex-start;margin-top:calc((var(--task-font-size)*1.5 + 14px - 18px)/2)}
 .row>.actions{margin-top:calc((var(--task-font-size)*1.5 + 14px - 27px)/2)}
 @media(max-width:650px){main{padding:60px 10px 20px}.row{flex-wrap:wrap}.row>.actions{margin-top:0;margin-left:auto;justify-content:flex-end;flex-basis:100%;height:27px}.row>.title{flex-basis:calc(100% - 54px)}}
+
+/* The Archive row and every family below it share one grey section. */
+.task-group.archive-group{--group-color:#858585;--group-bg:#f0f0f0}
+.archive-group .title,.archive-group .row.child .title,.archive-group .grip,.archive-group .actions button,.archive-group .preview-task{color:#666}
+.archive-group .row.archive-subtask{margin-left:55px}
+.archive-group .preview-archive-subtask{margin-left:36px}
+@media(max-width:650px){.archive-group .row.archive-subtask{margin-left:32px}}
