@@ -65,3 +65,19 @@ main>header{justify-content:flex-end;margin-bottom:20px}
 .list-choice:focus{outline:none;border-color:var(--group-color);background:var(--group-bg);box-shadow:0 3px 12px #243c2312}
 .list-choice:hover{background:var(--group-bg)}
 @media(max-width:650px){.workspace{display:flex;margin:18px 0 5px}.sidebar-settings{margin-bottom:4px}.sidebar-settings .font-controls>span{width:auto}#listchoices{max-height:65vh}.list-choice{padding:16px;font-size:16px}}
+
+#listpicker{width:min(1280px,94vw);max-width:94vw;padding:18px}
+#listchoices{display:flex;gap:16px;max-height:none;overflow-x:auto;padding:5px 5px 14px;scroll-snap-type:x proximity}
+.list-choice{display:flex;flex-direction:column;align-items:stretch;gap:0;flex:0 0 310px;height:min(68vh,650px);padding:0;margin:0;border:3px solid transparent;background:#f5f7f3;overflow:hidden;scroll-snap-align:center;cursor:pointer;font-size:16px;font-weight:500}
+.list-choice:before{display:none}
+.list-choice[aria-current=true]{border-color:#a5b6a8;background:#f5f7f3}
+.list-choice:focus{border-color:var(--group-color);background:#fff;box-shadow:0 5px 20px #243c2320}
+.preview-heading{padding:20px 18px;font-size:19px;font-weight:700;line-height:1.4;background:var(--group-bg);border-bottom:1px solid var(--group-color);overflow-wrap:anywhere}
+.preview-tasks{overflow-y:auto;flex:1;padding:0 12px 14px;overscroll-behavior:contain;scrollbar-width:thin}
+.preview-group{border-width:2px;margin-top:12px;padding:0;border-radius:9px}
+.preview-task{display:flex;align-items:flex-start;gap:9px;padding:12px 10px;line-height:1.5;font-size:14px;font-weight:700;overflow-wrap:anywhere;color:#000}
+.preview-task>span:last-child{min-width:0}
+.preview-child{font-weight:500;margin:0 6px 6px 20px;padding:9px 7px;border:1px solid var(--group-color);border-radius:6px;background:#ffffff80}
+.preview-check{border:1.5px solid var(--group-color);border-radius:50%;width:14px;height:14px;flex-shrink:0;margin-top:3px;font-size:10px;display:grid;place-items:center}
+.preview-completed>span:last-child{text-decoration:line-through}
+@media(max-width:650px){#listpicker{padding:10px}.list-choice{flex-basis:min(290px,78vw);height:65vh}.preview-heading{padding:16px}}

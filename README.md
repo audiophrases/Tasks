@@ -49,7 +49,7 @@ Task text size can be adjusted with the +/− controls inside Display & help in 
 - Alt + Enter (or Ctrl/Cmd + Shift + Enter): complete / reopen the focused task
 - Ctrl/Cmd + C with no text highlighted: copy the whole focused task title; highlighted text copies normally
 - Each task also has a Copy text button
-- Alt + L: open the list picker; arrow keys select a list, Enter opens it, Esc cancels
+- Alt + L: open list columns with task previews; Left/Right cycle lists, Up/Down scroll tasks, Enter opens the list, Esc cancels
 - N: focus new task field when not editing
 - ?: show shortcuts
 
