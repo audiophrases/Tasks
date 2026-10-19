@@ -57,6 +57,7 @@ New subtasks start with an empty title, from either the subtask button or Ctrl/C
 - Tab / Shift + Tab anywhere in a task title: indent / outdent
 - Alt + Up / Down: reorder; subtasks move within their group and into the adjacent parent group at a boundary
 - Alt + Enter (or Ctrl/Cmd + Shift + Enter): complete / reopen the focused task
+- Ctrl/Cmd + Delete: move the focused task and its subtasks to Deleted (Mac also supports Cmd + Backspace)
 - Ctrl/Cmd + C with no text highlighted: copy the whole focused task title; highlighted text copies normally
 - Each task also has a Copy text button
 - Alt + L: open list columns with task previews; Left/Right cycle lists, Up/Down scroll tasks, Enter opens the list, Esc cancels

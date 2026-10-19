@@ -5,7 +5,7 @@ const fs=require('node:fs');
 
 function harness(restore=false){
   const elements=new Map();let prompts=0;
-  const $=selector=>{if(!elements.has(selector))elements.set(selector,{style:{},addEventListener(){}});return elements.get(selector);};
+  const $=selector=>{if(!elements.has(selector))elements.set(selector,{style:{},listeners:{},addEventListener(name,fn){this.listeners[name]=fn;}});return elements.get(selector);};
   const context={resizeTaskTitles(){},resizeTaskTitle(){},document:{querySelector:$,addEventListener(){}},crypto:{},
     localStorage:{getItem(){throw Error('Old demo storage must not be read');}},
     connection:async()=>{prompts++;},handleTaskShortcut(){},syncPending:()=>false,updateSyncStatus(){},syncRevision:0,restoreSyncDraft:()=>null,retrySync(){},
@@ -116,4 +116,13 @@ test('both the subtask button and Ctrl+Enter request an empty subtask',async()=>
   await new Promise(resolve=>setImmediate(resolve));
   assert.equal(calls.length,2);
   for(const args of calls){assert.equal(args[0],'');assert.equal(args[1],'p');assert.equal(args[3].allowEmpty,true);}
+});
+
+
+test('a delayed title change from a removed task cannot break the new focus',async()=>{
+  const h=harness(true);await new Promise(resolve=>setImmediate(resolve));
+  vm.runInContext("data.tasks.google=[{id:'next',title:'Next task'}]",h.context);
+  const input={value:'Title of the moved task',matches:()=>true,closest:()=>({dataset:{id:'removed'}})};
+  assert.doesNotThrow(()=>h.$('#tasks').listeners.change({target:input}));
+  assert.equal(vm.runInContext('tasks()[0].title',h.context),'Next task');
 });

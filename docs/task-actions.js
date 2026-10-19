@@ -22,6 +22,26 @@ function handleTaskShortcut(event) {
   const task = tasks().find(task => task.id === row.dataset.id);
   if (!task) return false;
   const modifier = event.ctrlKey || event.metaKey;
+  const remove = !event.altKey && !event.shiftKey && (
+    (modifier && event.key === 'Delete') || (event.metaKey && event.key === 'Backspace')
+  );
+  if (remove) {
+    event.preventDefault();
+    if (busy || event.repeat) return true;
+    const title = taskText(row, task).trim();
+    void run(async () => {
+      const before = visibleTasks(), index = before.indexOf(task);
+      if (title && title !== task.title) await patch(task, {title});
+      deleteTask(task);
+      if (tasks().includes(task)) return; // Already in Deleted.
+      const remaining = visibleTasks();
+      const next = before.slice(index + 1).find(item => remaining.includes(item)) ||
+        before.slice(0, index).reverse().find(item => remaining.includes(item));
+      if (next) focus(next.id);
+      else $('#quick').focus();
+    });
+    return true;
+  }
   if (modifier && !event.altKey && !event.shiftKey && event.key.toLowerCase() === 'c') {
     // Preserve the browser's normal Copy behavior whenever text is selected.
     if (hasSelectedText(event.target)) return false;

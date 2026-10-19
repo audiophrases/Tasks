@@ -8,20 +8,22 @@ function harness(options = {}) {
   const input = {value:'Current full task text',selectionStart:4,selectionEnd:4};
   const row = {dataset:{id:'a'},querySelector(){return input;}};
   const target = {closest(){return row;},selectionStart:4,selectionEnd:4};
-  const copied=[],messages=[],patches=[];
+  const copied=[],messages=[],patches=[],deleted=[],focused=[];
+  const items=[task,...(options.neighbor?[{id:'b',title:'Next task',status:'needsAction'}]:[])];
   let prevented=false,work;
   const context = {
     navigator:{clipboard:{async writeText(value){if(options.blockCopy)throw Error('Blocked');copied.push(value);}}},
     window:{getSelection(){return {toString(){return '';}};}},
-    notify(message){messages.push(message);},tasks(){return [task];},
+    notify(message){messages.push(message);},tasks(){return items;},
     busy:options.busy||false,showCompleted:false,
     run(fn){work=fn();return work;},
     async patch(value,changes){patches.push(changes);Object.assign(value,changes);},
-    ordered(){return [task];},focus(){},$(){return {focus(){}};},
-    visibleTasks(){return options.archived || task.status!=='completed' ? [task] : [];},
+    deleteTask(value){deleted.push(value);if(!options.inDeleted)items.splice(items.indexOf(value),1);},
+    ordered(){return items;},focus(id){focused.push(id);},$(){return {focus(){focused.push('quick');}};},
+    visibleTasks(){return items.filter(item=>options.archived || item.status!=='completed');},
   };
   vm.createContext(context);vm.runInContext(fs.readFileSync('docs/task-actions.js','utf8'),context);
-  return {context,task,input,target,copied,messages,patches,
+  return {context,task,input,target,copied,messages,patches,deleted,focused,
     event(overrides={}){return {target,key:'c',ctrlKey:true,preventDefault(){prevented=true;},...overrides};},
     get prevented(){return prevented;},get work(){return work;}};
 }
@@ -59,4 +61,43 @@ test('completion ignores held keys, IME composition and in-flight writes',()=>{
 test('clipboard denial reports failure without claiming success',async()=>{
   const h=harness({blockCopy:true});await h.context.copyTaskText({querySelector(){return h.input;}},h.task);
   assert.match(h.messages[0],/blocked/);assert.equal(h.copied.length,0);
+});
+
+test('Ctrl+Delete saves the current title, moves the task to Deleted, and focuses the next task',async()=>{
+  const h=harness({neighbor:true});
+  assert.equal(h.context.handleTaskShortcut(h.event({key:'Delete'})),true);
+  await h.work;
+  assert.equal(h.prevented,true);assert.deepEqual(h.deleted,[h.task]);
+  assert.equal(h.task.title,h.input.value);assert.equal(h.patches.length,1);
+  assert.deepEqual(h.focused,['b']);
+});
+
+test('Command+Delete and Mac Command+Backspace support the same move action',async()=>{
+  for(const key of ['Delete','Backspace']){
+    const h=harness();
+    assert.equal(h.context.handleTaskShortcut(h.event({key,ctrlKey:false,metaKey:true})),true);
+    await h.work;assert.equal(h.deleted.length,1);assert.deepEqual(h.focused,['quick']);
+  }
+});
+
+test('normal text deletion and unrelated modifier combinations retain native behavior',()=>{
+  for(const keys of [{key:'Delete',ctrlKey:false},{key:'Backspace',ctrlKey:false},
+    {key:'Backspace'},{key:'Delete',altKey:true},{key:'Delete',shiftKey:true}]){
+    const h=harness();assert.equal(h.context.handleTaskShortcut(h.event(keys)),false);
+    assert.equal(h.prevented,false);assert.equal(h.deleted.length,0);
+  }
+});
+
+test('delete shortcut ignores held keys, composition, and busy operations',()=>{
+  for(const options of [{repeat:true},{isComposing:true}]){
+    const h=harness();h.context.handleTaskShortcut(h.event({key:'Delete',...options}));
+    assert.equal(h.deleted.length,0);assert.equal(h.patches.length,0);
+  }
+  const h=harness({busy:true});h.context.handleTaskShortcut(h.event({key:'Delete'}));
+  assert.equal(h.deleted.length,0);assert.equal(h.patches.length,0);
+});
+
+test('already-deleted tasks keep focus when the move action leaves them in place',async()=>{
+  const h=harness({inDeleted:true});h.context.handleTaskShortcut(h.event({key:'Delete'}));
+  await h.work;assert.deepEqual(h.focused,[]);assert.equal(h.context.tasks()[0],h.task);
 });
