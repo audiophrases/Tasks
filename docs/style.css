@@ -13,3 +13,28 @@
 .remember-option input{width:17px;height:17px;margin:0;accent-color:#39735c}
 dialog .remember-hint{font-size:11px;line-height:1.5;margin:5px 0 18px}
 @media(max-width:800px){header{flex-wrap:wrap;gap:20px}.header-actions{align-items:center}.font-controls>span{display:none}}
+
+/* Keep task families recognizable while preserving strong text contrast. */
+:root{color:#000;--muted:#000}
+.workspace,nav button,nav button.active,nav button span:last-child,.subtle,
+.connection,kbd,.eyebrow,header p,.pill,#status,.task-label,.board-footer,
+.tip,.tip strong,.tip p,footer,dialog,dialog p,dialog li,#empty,.font-controls,
+dialog a,.quick input,.quick input::placeholder{color:#000}
+#tasks{padding:0 16px 16px}
+.row{--group-color:#276749;--group-bg:#f1f8f3;border:3px solid var(--group-color);border-radius:9px;margin-top:14px;background:var(--group-bg)}
+.group-0{--group-color:#276749;--group-bg:#f1f8f3}
+.group-1{--group-color:#275dad;--group-bg:#f0f5ff}
+.group-2{--group-color:#8646a3;--group-bg:#f8f2fc}
+.group-3{--group-color:#a45b16;--group-bg:#fff7ed}
+.group-4{--group-color:#a33352;--group-bg:#fff1f5}
+.group-5{--group-color:#147078;--group-bg:#effafb}
+.row.child{border-width:2px;margin-top:6px;margin-left:24px;padding-left:28px}
+.row.child:before{left:12px;color:var(--group-color)}
+.title,.row.child .title,.completed .title{color:#000;opacity:1}
+.title{font-weight:700}
+.row.child .title{font-weight:500}
+.row.selected,.row:focus-within{background:var(--group-bg);box-shadow:0 0 0 2px #000}
+.grip,.actions button{color:#000}
+.check{border:2px solid var(--group-color);background:#fff}
+.check.done{background:var(--group-color);border-color:var(--group-color);color:#fff}
+@media(max-width:650px){#tasks{padding:0 8px 12px}.row.child{margin-left:14px;padding-left:23px}.row.child:before{left:8px}}
