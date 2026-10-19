@@ -14,7 +14,7 @@ function taskDisplayGroups(items, includeCompleted) {
     const family = families.get(id);
     family.sort((a, b) => Number(Boolean(a.parent)) - Number(Boolean(b.parent)));
     const root = family.find(task => !task.parent);
-    if (!archive && root?.title.trim().toLowerCase() === 'archive') {
+    if (!archive && root && (root.title || '').trim().toLowerCase() === 'archive') {
       archive = {archived: true, marker: root.id, tasks: []};
       groups.push(archive);
     }

@@ -42,3 +42,13 @@ test('columns preview real tasks and subtasks, excluding cleared and hidden comp
   assert.match(h.elements['#listchoices'].innerHTML,/preview-heading/);
   assert.match(h.elements['#listchoices'].innerHTML,/Parent/);
 });
+
+test('previews use the same grey archive boundary and show completed archived subtasks',()=>{
+  const h=harness();
+  h.context.data.tasks.a=[{id:'p',title:'Active'}, {id:'a',title:'Archive'}, {id:'q',title:'Archived project'},
+    {id:'c',title:'Archived completed child',parent:'q',status:'completed',hidden:true}];
+  const html=h.context.listTaskPreview('a');
+  assert.equal((html.match(/archive-group/g)||[]).length,1);
+  assert.match(html,/preview-archive-subtask/);assert.match(html,/Archived completed child/);
+  assert.ok(html.indexOf('Active')<html.indexOf('archive-group'));
+});
