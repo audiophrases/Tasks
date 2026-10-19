@@ -62,10 +62,17 @@ async function useLocalWorkspace() {
 async function connection() {
   modal(`<span class="eyebrow">YOUR EXISTING GOOGLE CONNECTION</span><h2>${token ? 'Google Tasks connection' : 'Continue with Google'}</h2><p>Uses the same Google sign-in configuration as Pinplay. Choose your account and allow access to your tasks.</p><p>Your Google lists stay in sync across devices. Local tasks stay separate.</p><button id="authorize" class="primary" disabled>Preparing sign-in…</button>${token ? '<button id="disconnect" class="subtle">Switch to local workspace</button>' : ''}<p id="autherror" role="alert"></p><details><summary>If Google asks for additional setup</summary><p>Taskflow uses Pinplay’s existing Google client. Google Tasks is an additional permission: the Tasks API must be enabled in that same Google Cloud project, and testing apps must include your account as a test user. You do not need to create another OAuth client.</p></details>`);
   const button = $('#authorize'), error = $('#autherror');
+  button.insertAdjacentHTML('beforebegin', '<label class="remember-option"><input type="checkbox" id="rememberme"> Remember me on this device</label><p id="rememberhint" class="remember-hint">Remembers your current Google session until it expires.</p>');
+  const remember = $('#rememberme');
+  remember.checked = rememberChoice();
   if (token) $('#disconnect').onclick = useLocalWorkspace;
   try {
     const [config, persistence] = await Promise.all([fetchPinplayConfig(), persistentSessionConfig(), loadGoogleIdentityScript()]);
     if (!button.isConnected) return;
+    $('#rememberhint').textContent = persistence.persistentSessions
+      ? 'Stay signed in when you return. You can sign out at any time.'
+      : 'Remembers this Google session across visits, usually for up to an hour.';
+    let usePersistence = false;
     const hint = pinplayAccountHint();
     const options = {
       client_id: config.googleClientId,
@@ -82,21 +89,25 @@ async function connection() {
           error.textContent = response.error_description || response.error;
           return;
         }
-        if (!persistence.persistentSessions && (!response.access_token || !window.google.accounts.oauth2.hasGrantedAllScopes(response, TASKS_SCOPE))) {
+        if (!usePersistence && (!response.access_token || !window.google.accounts.oauth2.hasGrantedAllScopes(response, TASKS_SCOPE))) {
           error.textContent = 'Google Tasks permission was not granted. Continue again and allow access to your tasks.';
           return;
         }
-        if (persistence.persistentSessions) {
+        if (usePersistence) {
           try { if (!await exchangeGoogleCode(response.code)) return; }
           catch (failure) { error.textContent = failure.message; return; }
-        } else token = response.access_token;
-        if (!persistence.persistentSessions) expires = Date.now() + Number(response.expires_in) * 1000;
+        } else {
+          try { await forgetGoogleSession(); } catch {}
+          token = response.access_token;
+          expires = Date.now() + Number(response.expires_in) * 1000;
+        }
         clearInterval(refreshTimer);
         // Keep local tasks visible until the first authenticated Google read succeeds.
         try {
           busy = true;
           document.body.classList.add('busy');
           await reload();
+          rememberBrowserSession(remember.checked && !usePersistence);
           $('#modal').close();
           notify('Google Tasks connected. Your lists are ready.');
           startGoogleRefresh();
@@ -111,16 +122,17 @@ async function connection() {
         }
       },
     };
-    const client = persistence.persistentSessions
-      ? window.google.accounts.oauth2.initCodeClient({...options, ux_mode:'popup'})
-      : window.google.accounts.oauth2.initTokenClient(options);
+    const tokenClient = window.google.accounts.oauth2.initTokenClient(options);
+    const codeClient = persistence.persistentSessions ? window.google.accounts.oauth2.initCodeClient({...options, ux_mode:'popup'}) : null;
     button.disabled = false;
     button.textContent = token ? 'Reconnect with Google' : 'Continue with Google';
     button.onclick = () => {
       error.textContent = '';
+      usePersistence = Boolean(persistence.persistentSessions && remember.checked);
+      saveRememberChoice(remember.checked);
       button.disabled = true;
       // Keep this synchronous with the click so the browser permits Google's popup.
-      try { if (persistence.persistentSessions) client.requestCode(); else client.requestAccessToken({prompt: hint ? '' : 'select_account'}); }
+      try { if (usePersistence) codeClient.requestCode(); else tokenClient.requestAccessToken({prompt: hint ? '' : 'select_account'}); }
       catch (failure) { button.disabled = false; error.textContent = failure.message; }
     };
   } catch (failure) {

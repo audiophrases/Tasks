@@ -9,4 +9,7 @@
 .font-controls button{width:30px;height:30px;font-size:21px;line-height:1}
 .font-controls button:disabled{opacity:.3;cursor:default}
 .font-controls output{min-width:35px;text-align:center;font-size:11px;font-variant-numeric:tabular-nums}
+.remember-option{display:flex;align-items:center;gap:9px;margin:18px 0 4px;font-size:13px;cursor:pointer}
+.remember-option input{width:17px;height:17px;margin:0;accent-color:#39735c}
+dialog .remember-hint{font-size:11px;line-height:1.5;margin:5px 0 18px}
 @media(max-width:800px){header{flex-wrap:wrap;gap:20px}.header-actions{align-items:center}.font-controls>span{display:none}}

@@ -1,6 +1,39 @@
 const SESSION_API = 'https://api.pinplay.win/api/taskflow';
 const SESSION_KEY = 'taskflow-google-session-v1';
+const BROWSER_SESSION_KEY = 'taskflow-browser-session-v1';
+const REMEMBER_KEY = 'taskflow-remember-me';
 let sessionRenewal = null, sessionGeneration = 0;
+
+function rememberChoice() {
+  try { return localStorage.getItem(REMEMBER_KEY) === '1'; } catch { return false; }
+}
+
+function saveRememberChoice(enabled) {
+  try { localStorage.setItem(REMEMBER_KEY, enabled ? '1' : '0'); } catch {}
+}
+
+function rememberedBrowserSession() {
+  try {
+    const value = JSON.parse(localStorage.getItem(BROWSER_SESSION_KEY) || 'null');
+    if (typeof value?.accessToken === 'string' && value.accessToken && Number.isFinite(value.expiresAt) && value.expiresAt > Date.now()) return value;
+    localStorage.removeItem(BROWSER_SESSION_KEY);
+  } catch {}
+  return null;
+}
+
+function forgetBrowserSession() {
+  try { localStorage.removeItem(BROWSER_SESSION_KEY); } catch {}
+}
+
+function rememberBrowserSession(enabled) {
+  forgetBrowserSession();
+  if (!enabled || !token || expires <= Date.now()) return;
+  try {
+    // Only with the user's Remember me choice, and only until Google's expiry.
+    // This cache cannot renew or extend a Google access token.
+    localStorage.setItem(BROWSER_SESSION_KEY, JSON.stringify({accessToken:token, expiresAt:expires}));
+  } catch { notify('This browser could not save your session. You can still use Tasks in this tab.'); }
+}
 
 function savedGoogleSession() {
   try {
@@ -87,12 +120,15 @@ function startGoogleRefresh() {
 async function forgetGoogleSession() {
   const saved=savedGoogleSession();
   sessionGeneration++;
+  forgetBrowserSession();
   localStorage.removeItem(SESSION_KEY);
   if(saved)await sessionRequest('/logout',{handle:saved.handle});
 }
 
 async function restoreGoogleSession() {
-  if(!savedGoogleSession()||busy)return;
+  const saved = savedGoogleSession(), cached = rememberedBrowserSession();
+  if ((!saved && !cached) || busy) return;
+  if (!saved && cached) { token = cached.accessToken; expires = cached.expiresAt; }
   busy=true;
   document.body.classList.add('busy');
   $('#status').textContent='Restoring Google Tasks…';

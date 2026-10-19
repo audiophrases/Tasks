@@ -6,7 +6,7 @@ const fs = require('node:fs');
 function harness(options = {}) {
   const elements = new Map();
   const $ = selector => {
-    if (!elements.has(selector)) elements.set(selector, {isConnected:true,textContent:'',disabled:false,close(){this.closed=true;}});
+    if (!elements.has(selector)) elements.set(selector, {isConnected:true,textContent:'',disabled:false,insertAdjacentHTML(){},close(){this.closed=true;}});
     return elements.get(selector);
   };
   let config, request, reads=0, fetches=0;
@@ -27,6 +27,8 @@ function harness(options = {}) {
     persistentSessionConfig:async()=>({persistentSessions:options.persistent||false}),
     exchangeGoogleCode:async code=>{if(code!=='one-time-code')throw Error('Missing code');context.token='renewable-access';context.expires=Date.now()+3600000;return true;},
     startGoogleRefresh(){},
+    rememberChoice:()=>options.remember ?? Boolean(options.persistent),
+    saveRememberChoice(){},rememberBrowserSession(){},forgetGoogleSession:async()=>{},
   };
   vm.createContext(context);
   vm.runInContext(fs.readFileSync('docs/auth.js','utf8'),context);
@@ -72,4 +74,11 @@ test('configured persistent login uses code flow and loads lists after server ex
   await h.config.callback({code:'one-time-code'});
   assert.equal(h.context.token,'renewable-access');assert.equal(h.reads,1);
   assert.equal(h.$('#modal').closed,true);
+});
+test('Remember me is optional even when long-lived sessions are configured',async()=>{
+  const h=harness({persistent:true,remember:false});await h.context.connection();
+  assert.equal(h.$('#rememberme').checked,false);
+  h.$('#authorize').onclick();assert.equal(h.request.code,undefined);
+  await h.config.callback({access_token:'current-tab',expires_in:3600});
+  assert.equal(h.context.token,'current-tab');
 });

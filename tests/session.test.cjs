@@ -50,3 +50,25 @@ test('no saved connection leaves local workspace alone',async()=>{
   const h=harness({saved:false});await h.context.restoreGoogleSession();
   assert.equal(h.requests.length,0);assert.equal(h.loads,0);
 });
+test('Remember me restores an unexpired browser Google session without a popup or backend request',async()=>{
+  const h=harness({saved:false});
+  h.store.set('taskflow-browser-session-v1',JSON.stringify({accessToken:'remembered-access',expiresAt:Date.now()+3600000}));
+  await h.context.restoreGoogleSession();
+  assert.equal(h.context.token,'remembered-access');assert.equal(h.loads,1);assert.equal(h.requests.length,0);
+});
+test('expired browser sessions are discarded and never presented as signed in',async()=>{
+  const h=harness({saved:false});
+  h.store.set('taskflow-browser-session-v1',JSON.stringify({accessToken:'expired',expiresAt:Date.now()-1000}));
+  await h.context.restoreGoogleSession();
+  assert.equal(h.context.token,null);assert.equal(h.loads,0);assert.equal(h.store.size,0);
+});
+test('Remember me cache keeps the actual Google expiry and sign out removes it',async()=>{
+  const h=harness({saved:false});h.context.token='current';h.context.expires=Date.now()+5000;
+  h.context.rememberBrowserSession(true);
+  assert.equal(JSON.parse(h.store.get('taskflow-browser-session-v1')).expiresAt,h.context.expires);
+  await h.context.forgetGoogleSession();assert.equal(h.store.size,0);
+});
+test('unchecked Remember me never stores a browser token',()=>{
+  const h=harness({saved:false});h.context.token='current';h.context.expires=Date.now()+3600000;
+  h.context.rememberBrowserSession(false);assert.equal(h.store.size,0);
+});
