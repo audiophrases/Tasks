@@ -1,11 +1,11 @@
 const SESSION_API = 'https://api.pinplay.win/api/taskflow';
 const SESSION_KEY = 'taskflow-google-session-v1';
 const BROWSER_SESSION_KEY = 'taskflow-browser-session-v1';
-const REMEMBER_KEY = 'taskflow-remember-me';
+const REMEMBER_KEY = 'taskflow-remember-me:eugenime@gmail.com';
 let sessionRenewal = null, sessionGeneration = 0;
 
 function rememberChoice() {
-  try { return localStorage.getItem(REMEMBER_KEY) === '1'; } catch { return false; }
+  try { return localStorage.getItem(REMEMBER_KEY) !== '0'; } catch { return true; }
 }
 
 function saveRememberChoice(enabled) {

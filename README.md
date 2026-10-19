@@ -8,7 +8,7 @@ Open https://audiophrases.github.io/Tasks/ and choose **Connect Google Tasks**, 
 
 Taskflow reuses Pinplay's public client configuration from `https://api.pinplay.win/api/student/config` and the same Google Identity Services library. Both apps are served from `https://audiophrases.github.io`, so they share an authorized JavaScript origin. No client ID entry or new OAuth client is needed.
 
-Pinplay's student session authenticates only to Pinplay. Taskflow requests the additional `https://www.googleapis.com/auth/tasks` permission through Google's OAuth popup. If a valid Pinplay session exists on this origin, its email is used as an optional account hint; its student token is never used or transmitted. Pinplay's school roster does not control access to personal Google Tasks.
+Pinplay's student session authenticates only to Pinplay. Taskflow requests the additional `https://www.googleapis.com/auth/tasks` permission through Google's OAuth popup. This personal version defaults the Google account hint to `eugenime@gmail.com` and checks Remember me by default; you can still uncheck it. The email is an account hint, not an authentication credential or an access restriction. Pinplay's student token is never used or transmitted, and its school roster does not control access to Google Tasks.
 
 The Google Tasks API must be enabled in the existing client’s Google Cloud project. An app in testing may require your account to be added as a test user. Google consent cannot be skipped by reusing Pinplay's identity token.
 

@@ -35,11 +35,11 @@ function harness(options = {}) {
   return {context,$,get config(){return config;},get request(){return request;},get reads(){return reads;},get fetches(){return fetches;}};
 }
 
-test('uses Pinplay client and optional account hint; OAuth starts only after click',async()=>{
+test('uses Pinplay client and personal account hint; OAuth starts only after click',async()=>{
   const h=harness();await h.context.connection();
   assert.equal(h.config.client_id,'pinplay.apps.googleusercontent.com');
   assert.equal(h.config.scope,'https://www.googleapis.com/auth/tasks');
-  assert.equal(h.config.hint,'me@example.com');
+  assert.equal(h.config.hint,'eugenime@gmail.com');
   assert.equal(JSON.stringify(h.config).includes('never-forward-this'),false);
   assert.equal(h.request,undefined);
   h.$('#authorize').onclick();assert.equal(h.request.prompt,'');

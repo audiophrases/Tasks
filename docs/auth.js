@@ -40,10 +40,7 @@ function loadGoogleIdentityScript() {
 }
 
 function pinplayAccountHint() {
-  try {
-    const session = JSON.parse(localStorage.getItem('pinplay.student.v1') || 'null');
-    return Number(session?.expiresAt) > Date.now() ? session.student?.email || '' : '';
-  } catch { return ''; }
+  return 'eugenime@gmail.com';
 }
 
 async function useLocalWorkspace() {
