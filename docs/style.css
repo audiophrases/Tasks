@@ -47,10 +47,12 @@ main>header{justify-content:flex-end;margin-bottom:20px}
 .workspace{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
 #picklist{font-size:21px;letter-spacing:0;width:30px;height:30px;color:#000}
 .sidebar-settings{margin:0 0 14px}
-.sidebar-settings .header-actions{display:flex;flex-wrap:wrap;gap:6px;padding:8px 0;align-items:center}
-.sidebar-settings .font-controls{flex-wrap:wrap;gap:3px;max-width:100%}
-.sidebar-settings .font-controls>span{display:block;width:100%;padding:3px 5px}
-.sidebar-settings #help{margin:0;color:#000;flex-shrink:0}
+.sidebar-settings .header-actions{display:flex;flex-wrap:nowrap;gap:6px;padding:8px 0;align-items:center}
+.sidebar-settings .font-controls{flex-wrap:nowrap;gap:3px;padding:4px;min-width:0;max-width:100%}
+.sidebar-settings .font-controls>span{display:block;width:auto;padding:0 1px;white-space:nowrap}
+.sidebar-settings .font-controls button{width:22px;height:28px;padding:0;flex-shrink:0}
+.sidebar-settings .font-controls output{min-width:32px}
+.sidebar-settings #help{width:24px;height:24px;margin:0;color:#000;flex-shrink:0}
 #listpicker{width:560px;padding:14px;border:1px solid #d1dbd0;border-radius:22px;background:#fafcf9;box-shadow:0 24px 90px #142e3540}
 #listpicker::backdrop{background:#13251e66;backdrop-filter:blur(7px)}
 #listchoices{display:grid;gap:8px;max-height:70vh;overflow:auto;padding:4px}
