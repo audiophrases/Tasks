@@ -6,7 +6,7 @@ const fs=require('node:fs');
 function harness(restore=false){
   const elements=new Map();let prompts=0;
   const $=selector=>{if(!elements.has(selector))elements.set(selector,{style:{},addEventListener(){}});return elements.get(selector);};
-  const context={document:{querySelector:$,addEventListener(){}},crypto:{},
+  const context={resizeTaskTitles(){},resizeTaskTitle(){},document:{querySelector:$,addEventListener(){}},crypto:{},
     localStorage:{getItem(){throw Error('Old demo storage must not be read');}},
     connection:async()=>{prompts++;},handleTaskShortcut(){},syncPending:()=>false,updateSyncStatus(){},syncRevision:0,restoreSyncDraft:()=>null,retrySync(){},
     restoreGoogleSession:async()=>{if(restore)vm.runInContext("token='restored';data={lists:[{id:'google',title:'Real list'}],tasks:{google:[]}};list='google';render()",context);},

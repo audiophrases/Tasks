@@ -7,7 +7,7 @@ function deferred(){let resolve,reject;const promise=new Promise((a,b)=>{resolve
 function harness(storage=new Map()){
   const elements=new Map(),messages=[],events={},calls=[];let serial=0;
   const $=selector=>{if(!elements.has(selector))elements.set(selector,{style:{},addEventListener(){},focus(){},setSelectionRange(){}});return elements.get(selector);};
-  const context={URLSearchParams,console,crypto:{randomUUID:()=>String(++serial)},
+  const context={resizeTaskTitles(){},resizeTaskTitle(){},URLSearchParams,console,crypto:{randomUUID:()=>String(++serial)},
     localStorage:{getItem:key=>storage.get(key)||null,setItem:(key,value)=>storage.set(key,value),removeItem:key=>storage.delete(key)},
     window:{addEventListener:(name,fn)=>events[name]=fn},
     document:{querySelector:$,querySelectorAll:()=>[],addEventListener(){},body:{classList:{add(){throw Error('Foreground must not disable the board');},remove(){}}}},

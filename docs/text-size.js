@@ -6,6 +6,7 @@ function setTextSize(value) {
     ? Math.max(TEXT_SIZE_MIN, Math.min(TEXT_SIZE_MAX, Math.round(Number(value))))
     : TEXT_SIZE_DEFAULT;
   document.documentElement.style.setProperty('--task-font-size', size + 'px');
+  if(typeof resizeTaskTitles==='function')resizeTaskTitles();
   document.querySelector('#textsize').value = size + ' px';
   document.querySelector('#fontminus').disabled = size === TEXT_SIZE_MIN;
   document.querySelector('#fontplus').disabled = size === TEXT_SIZE_MAX;

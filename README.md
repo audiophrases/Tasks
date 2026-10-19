@@ -44,7 +44,7 @@ Run `node --check docs/app.js`, `node --check docs/auth.js`, and `node --test te
 
 Run the full regression suite with `node --test tests/*.test.cjs`.
 
-The entire sidebar is collapsed by default; use the top-left menu button to open it. Task text size and help are directly available in the sidebar. Alt + L works with the sidebar hidden. The choice is saved in this browser. Cleared Google tasks are excluded from insertion and movement references; move arrows follow visible tasks.
+The task board fills the available width, and task/subtask titles wrap and expand automatically as you type or change text size. The entire sidebar is collapsed by default; use the top-left menu button to open it. Task text size and help are directly available in the sidebar. Alt + L works with the sidebar hidden. The choice is saved in this browser. Cleared Google tasks are excluded from insertion and movement references; move arrows follow visible tasks.
 
 ## Shortcuts
 
