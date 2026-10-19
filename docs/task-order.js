@@ -21,6 +21,16 @@ function validateParent(parent) {
   if (!task) throw Error('That parent task is no longer available. Refresh the list and try again.');
 }
 
+function taskInsertionIndex(parent, previous) {
+  const items = tasks();
+  if (previous) return items.findIndex(item => item.id === previous) + 1;
+  // Google positions order siblings; a loaded child can precede its parent.
+  // Insert before the first sibling so local order matches Google's move API.
+  const first = siblingTasks(parent)[0];
+  if (first) return items.indexOf(first);
+  return parent ? items.findIndex(item => item.id === parent) + 1 : 0;
+}
+
 async function add(title, parent, previous, {allowEmpty = false} = {}) {
   if (!title.trim() && !(allowEmpty && parent)) return;
   validateParent(parent);
@@ -28,9 +38,7 @@ async function add(title, parent, previous, {allowEmpty = false} = {}) {
   const task = {id:'pending:'+uid(),title:title.trim(),status:'needsAction',...(parent ? {parent} : {})};
   const listId=list;
   const items = tasks();
-  const index = previous ? items.findIndex(item => item.id === previous) + 1
-    : parent ? items.findIndex(item => item.id === parent) + 1 : 0;
-  items.splice(index, 0, task);
+  items.splice(taskInsertionIndex(parent, previous), 0, task);
   if(token)enqueueSync({kind:'create',listId,id:task.id,title:task.title,parent,previous});
   focus(task.id);
 }
@@ -48,9 +56,7 @@ async function move(task, parent, previous) {
   items.splice(items.indexOf(task), 1);
   if (parent) task.parent = parent;
   else delete task.parent;
-  const index = previous ? items.findIndex(item => item.id === previous) + 1
-    : parent ? items.findIndex(item => item.id === parent) + 1 : 0;
-  items.splice(index, 0, task);
+  items.splice(taskInsertionIndex(parent, previous), 0, task);
   if(token)enqueueSync({kind:'move',listId,id:task.id,parent,previous});
   focus(task.id);
 }

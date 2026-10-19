@@ -99,6 +99,41 @@ test('subtasks cross group boundaries while remaining subtasks',async()=>{
   assert.equal(h.calls.length,2);
 });
 
+test('Alt+Up can reach the previous parent when loaded children precede their parent',async()=>{
+  const h=harness([
+    task('remote',{parent:'omarchy'}),task('pinplay'),task('omarchy'),
+    task('notebook',{parent:'omarchy'}),task('caps',{parent:'omarchy'}),
+  ]);
+  const notebook=h.items.find(item=>item.id==='notebook');
+  await h.context.reorder(notebook,-1);
+  assert.deepEqual(Array.from(h.context.visibleTasks(),item=>item.id),['pinplay','omarchy','notebook','remote','caps']);
+  assert.equal(h.calls[0].op.parent,'omarchy');assert.equal(h.calls[0].op.previous,undefined);
+  await h.context.reorder(notebook,-1);
+  assert.deepEqual(Array.from(h.context.visibleTasks(),item=>item.id),['pinplay','notebook','omarchy','remote','caps']);
+  assert.equal(notebook.parent,'pinplay');assert.equal(h.calls[1].op.parent,'pinplay');
+});
+
+test('moving down into a group and back up respects interleaved Google task order',async()=>{
+  const h=harness([
+    task('remote',{parent:'omarchy'}),task('pinplay'),
+    task('notebook',{parent:'pinplay'}),task('omarchy'),task('caps',{parent:'omarchy'}),
+  ]);
+  const notebook=h.items.find(item=>item.id==='notebook');
+  await h.context.reorder(notebook,1);
+  assert.deepEqual(Array.from(h.context.visibleTasks(),item=>item.id),['pinplay','omarchy','notebook','remote','caps']);
+  assert.equal(notebook.parent,'omarchy');
+  await h.context.reorder(notebook,-1);
+  assert.deepEqual(Array.from(h.context.visibleTasks(),item=>item.id),['pinplay','notebook','omarchy','remote','caps']);
+  assert.equal(notebook.parent,'pinplay');
+});
+
+test('new subtasks insert before the first sibling even when it precedes the parent',async()=>{
+  const h=harness([task('child',{parent:'parent'}),task('parent')]);
+  await h.context.add('First child','parent');
+  assert.deepEqual(Array.from(h.context.visibleTasks(),item=>item.title),['parent','First child','child']);
+  assert.equal(h.calls[0].op.previous,undefined);
+});
+
 test('a new subtask can be blank while accidental empty quick-adds are ignored',async()=>{
   const h=harness([task('parent')]);
   await h.context.add('','parent',undefined,{allowEmpty:true});
