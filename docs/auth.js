@@ -43,26 +43,27 @@ function pinplayAccountHint() {
   return 'eugenime@gmail.com';
 }
 
-async function useLocalWorkspace() {
+async function signOut() {
   try { await forgetGoogleSession(); }
   catch { notify('Signed out on this browser. The server connection could not be removed; it will expire automatically.'); }
   token = null;
   expires = 0;
   clearInterval(refreshTimer);
-  data = local;
-  list = data.lists[0].id;
+  data = {lists:[],tasks:{}};
+  list = null;
   selected = null;
   $('#modal').close();
   render();
+  await connection();
 }
 
 async function connection() {
-  modal(`<span class="eyebrow">YOUR EXISTING GOOGLE CONNECTION</span><h2>${token ? 'Google Tasks connection' : 'Continue with Google'}</h2><p>Uses the same Google sign-in configuration as Pinplay. Choose your account and allow access to your tasks.</p><p>Your Google lists stay in sync across devices. Local tasks stay separate.</p><button id="authorize" class="primary" disabled>Preparing sign-in…</button>${token ? '<button id="disconnect" class="subtle">Switch to local workspace</button>' : ''}<p id="autherror" role="alert"></p><details><summary>If Google asks for additional setup</summary><p>Taskflow uses Pinplay’s existing Google client. Google Tasks is an additional permission: the Tasks API must be enabled in that same Google Cloud project, and testing apps must include your account as a test user. You do not need to create another OAuth client.</p></details>`);
+  modal(`<span class="eyebrow">YOUR EXISTING GOOGLE CONNECTION</span><h2>${token ? 'Google Tasks connection' : 'Continue with Google'}</h2><p>Uses the same Google sign-in configuration as Pinplay. Choose your account and allow access to your tasks.</p><p>Sign in to view and manage your Google Tasks across devices.</p><button id="authorize" class="primary" disabled>Preparing sign-in…</button>${token ? '<button id="disconnect" class="subtle">Sign out</button>' : ''}<p id="autherror" role="alert"></p><details><summary>If Google asks for additional setup</summary><p>Taskflow uses Pinplay’s existing Google client. Google Tasks is an additional permission: the Tasks API must be enabled in that same Google Cloud project, and testing apps must include your account as a test user. You do not need to create another OAuth client.</p></details>`);
   const button = $('#authorize'), error = $('#autherror');
   button.insertAdjacentHTML('beforebegin', '<label class="remember-option"><input type="checkbox" id="rememberme"> Remember me on this device</label><p id="rememberhint" class="remember-hint">Remembers your current Google session until it expires.</p>');
   const remember = $('#rememberme');
   remember.checked = rememberChoice();
-  if (token) $('#disconnect').onclick = useLocalWorkspace;
+  if (token) $('#disconnect').onclick = signOut;
   try {
     const [config, persistence] = await Promise.all([fetchPinplayConfig(), persistentSessionConfig(), loadGoogleIdentityScript()]);
     if (!button.isConnected) return;
@@ -99,7 +100,7 @@ async function connection() {
           expires = Date.now() + Number(response.expires_in) * 1000;
         }
         clearInterval(refreshTimer);
-        // Keep local tasks visible until the first authenticated Google read succeeds.
+        // Only show Google tasks after the first authenticated read succeeds.
         try {
           busy = true;
           document.body.classList.add('busy');

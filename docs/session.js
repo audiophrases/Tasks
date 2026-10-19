@@ -90,6 +90,7 @@ async function ensureGoogleSession() {
   const saved=savedGoogleSession();
   if(!saved) {
     if(token&&Date.now()<expires)return;
+    token=null;expires=0;
     throw Error('Your Google session expired. Connect again to continue.');
   }
   if(!sessionRenewal) {
@@ -137,6 +138,7 @@ async function restoreGoogleSession() {
     await reload();
     startGoogleRefresh();
   } catch(error) {
+    token=null;expires=0;
     notify(error.message);
     render();
   } finally {

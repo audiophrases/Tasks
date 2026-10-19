@@ -12,7 +12,7 @@ Pinplay's student session authenticates only to Pinplay. Taskflow requests the a
 
 The Google Tasks API must be enabled in the existing client’s Google Cloud project. An app in testing may require your account to be added as a test user. Google consent cannot be skipped by reusing Pinplay's identity token.
 
-The sign-in dialog has an optional **Remember me on this device** checkbox. Without the refresh backend, it saves your current Google access token in this browser only until Google's expiry (usually about an hour); it cannot extend that expiry. When unchecked, access tokens stay in memory. With the refresh backend configured, Remember me saves only a revocable session handle and restores/renews access automatically. Connected lists refresh every minute while the tab is visible, on return to the tab, and via Refresh. Local demo tasks remain separate and save only in this browser.
+The sign-in dialog has an optional **Remember me on this device** checkbox. Without the refresh backend, it saves your current Google access token in this browser only until Google's expiry (usually about an hour); it cannot extend that expiry. When unchecked, access tokens stay in memory. With the refresh backend configured, Remember me saves only a revocable session handle and restores/renews access automatically. Connected lists refresh every minute while the tab is visible, on return to the tab, and via Refresh. Signed-out visitors see the Google sign-in dialog; no demo or local task workspace is shown.
 
 ## Persistent sign-in setup
 
