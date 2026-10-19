@@ -12,6 +12,7 @@ function harness(options = {}) {
   let config, request, reads=0, fetches=0;
   const oauth2 = {
     initTokenClient(value){config=value;return {requestAccessToken(value){request=value;}};},
+    initCodeClient(value){config=value;return {requestCode(){request={code:true};}};},
     hasGrantedAllScopes(){return options.granted !== false;},
   };
   const context = {
@@ -23,6 +24,9 @@ function harness(options = {}) {
     document:{body:{classList:{add(){},remove(){}}}},
     token:null,expires:0,refreshTimer:null,busy:false,
     reload:async()=>{reads++;if(options.readFailure)throw Error('Google Tasks API is disabled');},
+    persistentSessionConfig:async()=>({persistentSessions:options.persistent||false}),
+    exchangeGoogleCode:async code=>{if(code!=='one-time-code')throw Error('Missing code');context.token='renewable-access';context.expires=Date.now()+3600000;return true;},
+    startGoogleRefresh(){},
   };
   vm.createContext(context);
   vm.runInContext(fs.readFileSync('docs/auth.js','utf8'),context);
@@ -61,4 +65,11 @@ test('closed popup permits retry without fetching tasks',async()=>{
   const h=harness();await h.context.connection();h.$('#authorize').onclick();
   h.config.error_callback({type:'popup_closed'});
   assert.equal(h.$('#authorize').disabled,false);assert.equal(h.reads,0);
+});
+test('configured persistent login uses code flow and loads lists after server exchange',async()=>{
+  const h=harness({persistent:true});await h.context.connection();
+  h.$('#authorize').onclick();assert.equal(h.request.code,true);
+  await h.config.callback({code:'one-time-code'});
+  assert.equal(h.context.token,'renewable-access');assert.equal(h.reads,1);
+  assert.equal(h.$('#modal').closed,true);
 });

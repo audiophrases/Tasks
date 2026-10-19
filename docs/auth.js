@@ -46,7 +46,9 @@ function pinplayAccountHint() {
   } catch { return ''; }
 }
 
-function useLocalWorkspace() {
+async function useLocalWorkspace() {
+  try { await forgetGoogleSession(); }
+  catch { notify('Signed out on this browser. The server connection could not be removed; it will expire automatically.'); }
   token = null;
   expires = 0;
   clearInterval(refreshTimer);
@@ -62,10 +64,10 @@ async function connection() {
   const button = $('#authorize'), error = $('#autherror');
   if (token) $('#disconnect').onclick = useLocalWorkspace;
   try {
-    const [config] = await Promise.all([fetchPinplayConfig(), loadGoogleIdentityScript()]);
+    const [config, persistence] = await Promise.all([fetchPinplayConfig(), persistentSessionConfig(), loadGoogleIdentityScript()]);
     if (!button.isConnected) return;
     const hint = pinplayAccountHint();
-    const client = window.google.accounts.oauth2.initTokenClient({
+    const options = {
       client_id: config.googleClientId,
       scope: TASKS_SCOPE,
       include_granted_scopes: true,
@@ -80,12 +82,15 @@ async function connection() {
           error.textContent = response.error_description || response.error;
           return;
         }
-        if (!response.access_token || !window.google.accounts.oauth2.hasGrantedAllScopes(response, TASKS_SCOPE)) {
+        if (!persistence.persistentSessions && (!response.access_token || !window.google.accounts.oauth2.hasGrantedAllScopes(response, TASKS_SCOPE))) {
           error.textContent = 'Google Tasks permission was not granted. Continue again and allow access to your tasks.';
           return;
         }
-        token = response.access_token;
-        expires = Date.now() + Number(response.expires_in) * 1000;
+        if (persistence.persistentSessions) {
+          try { if (!await exchangeGoogleCode(response.code)) return; }
+          catch (failure) { error.textContent = failure.message; return; }
+        } else token = response.access_token;
+        if (!persistence.persistentSessions) expires = Date.now() + Number(response.expires_in) * 1000;
         clearInterval(refreshTimer);
         // Keep local tasks visible until the first authenticated Google read succeeds.
         try {
@@ -94,9 +99,7 @@ async function connection() {
           await reload();
           $('#modal').close();
           notify('Google Tasks connected. Your lists are ready.');
-          refreshTimer = setInterval(() => {
-            if (!busy && document.visibilityState === 'visible' && Date.now() < expires) run(reload);
-          }, 60000);
+          startGoogleRefresh();
         } catch (failure) {
           token = null;
           expires = 0;
@@ -107,14 +110,17 @@ async function connection() {
           document.body.classList.remove('busy');
         }
       },
-    });
+    };
+    const client = persistence.persistentSessions
+      ? window.google.accounts.oauth2.initCodeClient({...options, ux_mode:'popup'})
+      : window.google.accounts.oauth2.initTokenClient(options);
     button.disabled = false;
     button.textContent = token ? 'Reconnect with Google' : 'Continue with Google';
     button.onclick = () => {
       error.textContent = '';
       button.disabled = true;
       // Keep this synchronous with the click so the browser permits Google's popup.
-      try { client.requestAccessToken({prompt: hint ? '' : 'select_account'}); }
+      try { if (persistence.persistentSessions) client.requestCode(); else client.requestAccessToken({prompt: hint ? '' : 'select_account'}); }
       catch (failure) { button.disabled = false; error.textContent = failure.message; }
     };
   } catch (failure) {

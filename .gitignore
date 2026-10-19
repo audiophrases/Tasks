@@ -1,2 +1,3 @@
 # Original local Sites checkout; GitHub Pages publishes docs/.
 /taskflow/
+/.taskflow-backend-deploy/

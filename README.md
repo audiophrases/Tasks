@@ -12,7 +12,19 @@ Pinplay's student session authenticates only to Pinplay. Taskflow requests the a
 
 The Google Tasks API must be enabled in the existing client’s Google Cloud project. An app in testing may require your account to be added as a test user. Google consent cannot be skipped by reusing Pinplay's identity token.
 
-Google access tokens remain in memory. Reconnect after reloading or session expiry. Connected lists refresh every minute while the tab is visible, on return to the tab, and via Refresh. Local demo tasks remain separate and save only in this browser.
+Google access tokens remain in memory. When the backend is configured for persistent sessions, returning visits restore the connection automatically and expiring access tokens are renewed before API calls. Connected lists refresh every minute while the tab is visible, on return to the tab, and via Refresh. Local demo tasks remain separate and save only in this browser.
+
+## Persistent sign-in setup
+
+The isolated `/api/taskflow/` routes run on the existing `pinplay-api` Worker. `server/taskflow-auth.mjs` is the canonical source, installed as `pinplay/cloudflare/taskflow-auth.mjs`, with an early route in that Worker's fetch handler. Pinplay student sign-in continues to use its existing routes.
+
+To activate persistence, add the existing Google Web OAuth client's **client secret** as a Cloudflare Worker Secret named `GOOGLE_CLIENT_SECRET` on `pinplay-api`. Find it under Google Auth Platform → Clients → the same Web client already used by Pinplay. Do not put the value in source, browser code, or chat. Existing `GOOGLE_CLIENT_ID`, `STUDENT_SESSION_KEY`, and `QUIZ_MEDIA` bindings are reused.
+
+After adding the secret, refresh Taskflow and connect once more. Google authorization-code popup mode supplies a refresh token to the server. No additional redirect endpoint is needed; the code exchange uses the existing authorized JavaScript origin `https://audiophrases.github.io`.
+
+Refresh/access credentials are encrypted with an application-specific HKDF-derived AES-GCM key and saved under the private `__taskflow_sessions_v1__/` R2 prefix. The browser saves only a random revocable session handle. Sessions have a 90-day maximum lifetime; invalid/revoked/expired sessions require reconnecting. Google apps still in Testing can have shorter provider-imposed refresh-token lifetimes. Configure an R2 lifecycle rule scoped to this prefix to purge records after 90 days. Signing out removes the browser handle and deletes its server record without revoking the shared Pinplay Google grant.
+
+Until the secret is configured, the existing short-lived browser token flow remains available; it does not provide persistence. Runtime `/api/taskflow/config` reports `persistentSessions: true` only when the required server bindings exist. Real Google code exchange and refresh still require an account-authorized live check after setup.
 
 ## Hosting and source
 
