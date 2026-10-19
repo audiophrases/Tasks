@@ -24,6 +24,10 @@ The ignored local `taskflow/` checkout and deployment archive predate the GitHub
 
 Run `node --check docs/app.js`, `node --check docs/auth.js`, and `node --test tests/auth.test.cjs`.
 
+Run the full regression suite with `node --test tests/*.test.cjs`.
+
+Task text size can be adjusted with the +/− controls above the list. The choice is saved in this browser. Cleared Google tasks are excluded from insertion and movement references; move arrows follow visible tasks.
+
 ## Shortcuts
 
 - Enter: add next task
