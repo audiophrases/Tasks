@@ -28,7 +28,7 @@ Until the secret is configured, the existing short-lived browser token flow rema
 
 ## Hosting and source
 
-GitHub Pages publishes `docs/` from `main`. Edit these files for future GitHub Pages updates. No build step or backend is required. Pinplay's repository and backend are unchanged.
+The Publish Taskflow GitHub Actions workflow publishes `docs/` from `main` to GitHub Pages. Edit these files for future GitHub Pages updates. No build step or backend is required. Pinplay's repository and backend are unchanged.
 
 The ignored local `taskflow/` checkout and deployment archive predate the GitHub Pages version; `docs/` is the source for the current app.
 
