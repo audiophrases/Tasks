@@ -45,3 +45,20 @@ test('parent frames wrap their children and neighboring groups use distinct colo
   assert.ok(html.indexOf('data-id="c"')<html.indexOf('task-group group-1'));
   assert.equal((html.match(/class="row /g)||[]).length,4);
 });
+
+test('Tab and Shift+Tab indent anywhere in the title and save pending edits',async()=>{
+  const h=harness(true);await new Promise(resolve=>setImmediate(resolve));
+  vm.runInContext("data.tasks.google=[{id:'t',title:'Original'}]",h.context);
+  const calls=[];
+  h.context.run=async fn=>fn();
+  h.context.patch=async(task,changes)=>{calls.push(['save',changes.title]);Object.assign(task,changes);};
+  h.context.indent=async(task,out)=>calls.push(['indent',task.id,out]);
+  const row={dataset:{id:'t'}};
+  for(const shiftKey of [false,true]){
+    let prevented=false;
+    h.$('#tasks').onkeydown({key:'Tab',shiftKey,preventDefault(){prevented=true;},target:{value:'Edited title',selectionStart:7,matches:()=>true,closest:()=>row}});
+    await new Promise(resolve=>setImmediate(resolve));
+    assert.equal(prevented,true);
+  }
+  assert.deepEqual(calls,[['save','Edited title'],['indent','t',false],['indent','t',true]]);
+});
