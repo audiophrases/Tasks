@@ -43,12 +43,20 @@ test('columns preview real tasks and subtasks, excluding cleared and hidden comp
   assert.match(h.elements['#listchoices'].innerHTML,/Parent/);
 });
 
-test('previews use the same grey archive boundary and show completed archived subtasks',()=>{
+test('previews keep the archive grey and respect Show completed for archived subtasks',()=>{
   const h=harness();
   h.context.data.tasks.a=[{id:'p',title:'Active'}, {id:'a',title:'Archive'}, {id:'q',title:'Archived project'},
-    {id:'c',title:'Archived completed child',parent:'q',status:'completed',hidden:true}];
+    {id:'c',title:'Archived completed child',parent:'q',status:'completed',hidden:true},
+    {id:'d',title:'Other completed child',parent:'q',status:'completed'},
+    {id:'open',title:'Unfinished archived child',parent:'q',status:'needsAction'}];
   const html=h.context.listTaskPreview('a');
   assert.equal((html.match(/archive-group/g)||[]).length,1);
-  assert.match(html,/preview-archive-subtask/);assert.match(html,/Archived completed child/);
+  assert.match(html,/preview-archive-subtask/);assert.match(html,/Unfinished archived child/);
+  assert.equal(html.includes('Archived completed child'),false);assert.equal(html.includes('Other completed child'),false);
   assert.ok(html.indexOf('Active')<html.indexOf('archive-group'));
+  h.context.showCompleted=true;
+  const expanded=h.context.listTaskPreview('a');
+  assert.match(expanded,/Archived completed child/);assert.match(expanded,/Other completed child/);
+  assert.equal((expanded.match(/archive-group/g)||[]).length,1);
+  h.context.showCompleted=false;assert.equal(h.context.listTaskPreview('a'),html);
 });

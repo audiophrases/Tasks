@@ -18,7 +18,7 @@ function taskDisplayGroups(items, includeCompleted) {
       archive = {archived: true, marker: root.id, tasks: []};
       groups.push(archive);
     }
-    if (archive) archive.tasks.push(...family);
+    if (archive) archive.tasks.push(...family.filter(task => !task.parent || includeCompleted || task.status !== 'completed'));
     else {
       const visible = family.filter(task => !task.hidden && (includeCompleted || task.status !== 'completed'));
       if (visible.length) groups.push({archived: false, tasks: visible});

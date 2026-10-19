@@ -63,10 +63,12 @@ test('Tab and Shift+Tab indent anywhere in the title and save pending edits',asy
   assert.deepEqual(calls,[['save','Edited title'],['indent','t',false],['indent','t',true]]);
 });
 
-test('Archive wraps every later project in one grey group and retains completed subtasks',()=>{
+test('Archive keeps projects grey and shows completed subtasks only when requested',()=>{
   const h=harness();
   const items=[{id:'active',title:'Active'}, {id:'archive',title:' Archive ',status:'completed'},
     {id:'project',title:'Old project'}, {id:'done',title:'Completed child',parent:'project',status:'completed',hidden:true},
+    {id:'done-visible',title:'Another completed child',parent:'project',status:'completed'},
+    {id:'open',title:'Unfinished child',parent:'project',status:'needsAction'},
     {id:'last',title:'Last project',status:'completed'}];
   const original=JSON.stringify(items);
   h.context.items=items;
@@ -74,11 +76,17 @@ test('Archive wraps every later project in one grey group and retains completed 
   assert.equal((html.match(/class="task-group /g)||[]).length,2);
   assert.equal((html.match(/archive-group/g)||[]).length,1);
   assert.match(html,/archive-project/);assert.match(html,/archive-subtask/);
-  assert.match(html,/Completed child/);assert.match(html,/Last project/);
+  assert.equal(html.includes('Completed child'),false);assert.equal(html.includes('Another completed child'),false);
+  assert.match(html,/Unfinished child/);assert.match(html,/Last project/);
   assert.equal(JSON.stringify(items),original);
   const groups=h.context.taskDisplayGroups(items,false);
   assert.equal(groups[0].archived,false);assert.equal(groups[1].archived,true);
   assert.equal(groups[1].tasks.length,4);
+  const expanded=vm.runInContext('showCompleted=true;renderTaskGroups(items)',h.context);
+  assert.match(expanded,/Completed child/);assert.match(expanded,/Another completed child/);
+  assert.match(expanded,/Unfinished child/);assert.equal((expanded.match(/archive-group/g)||[]).length,1);
+  const collapsed=vm.runInContext('showCompleted=false;renderTaskGroups(items)',h.context);
+  assert.equal(collapsed,html);assert.equal(JSON.stringify(items),original);
 });
 
 test('moving a project above Archive returns it to its own colored group',()=>{
