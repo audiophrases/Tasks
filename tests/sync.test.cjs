@@ -133,8 +133,6 @@ test('delete reuses Deleted and keeps completed and cleared subtasks with their 
   assert.equal(h.eval('data.tasks.D[1].notes'),'Keep notes');assert.equal(h.eval('data.tasks.D[1].status'),'completed');
   assert.match(h.calls[0].path,/destinationTasklist=D/);
   h.calls[0].resolve({id:'a'});await tick();
-  h.eval("list='D'");await h.context.run(()=>h.context.deleteTask(h.eval('tasks()[0]')));
-  assert.equal(h.calls.length,1);assert.equal(h.eval('tasks().length'),2);
 });
 
 test('deleting a subtask promotes it in Deleted and preserves its siblings',async()=>{
@@ -164,4 +162,49 @@ test('legacy pending deletes also move to Deleted',async()=>{
   h.context.enqueueSync({kind:'delete',listId:'L',id:'a'});
   assert.match(h.calls[0].path,/move\?destinationTasklist=D$/);
   h.calls[0].resolve({id:'a'});await tick();assert.equal(h.eval('syncPending()'),false);
+});
+
+test('deleting inside Deleted permanently removes a task and its completed subtasks without confirmation',async()=>{
+  const h=harness();
+  h.eval("data.lists[0].title=' Deleted ';tasks().push({id:'child',parent:'a',title:'Finished',status:'completed',hidden:true})");
+  h.context.confirm=()=>{throw Error('Deletion must not ask for confirmation');};
+  assert.match(h.context.renderTaskRow(h.eval('tasks()[0]')),/aria-label="Permanently delete task"/);
+  await h.context.run(()=>h.context.deleteTask(h.eval('tasks()[0]')));
+  assert.equal(h.eval('tasks().length'),1);assert.equal(h.eval('tasks()[0].id'),'b');
+  assert.equal(h.calls.length,1);assert.equal(h.calls[0].method,'DELETE');
+  assert.equal(h.calls[0].path,'/lists/L/tasks/a');
+  assert.equal(h.eval('data.lists.length'),2);
+  h.calls[0].resolve(null);await tick();assert.equal(h.eval('syncPending()'),false);
+});
+
+test('permanently deleting one subtask leaves its parent and siblings intact',async()=>{
+  const h=harness();h.eval("data.lists[0].title='Deleted';tasks()[1].parent='a';tasks().push({id:'c',parent:'a',title:'Keep sibling'})");
+  await h.context.run(()=>h.context.deleteTask(h.eval('tasks()[1]')));
+  assert.equal(h.eval("tasks().map(task=>task.id).join(',')"),'a,c');
+  assert.equal(h.calls[0].method,'DELETE');assert.equal(h.calls[0].path,'/lists/L/tasks/b');
+  h.calls[0].resolve(null);await tick();
+});
+
+test('a task moved to a newly created Deleted list can be permanently deleted before the move finishes',async()=>{
+  const h=harness();await h.context.run(()=>h.context.deleteTask(h.eval('tasks()[0]')));
+  h.eval("list=data.lists.find(item=>item.title==='Deleted').id");
+  await h.context.run(()=>h.context.deleteTask(h.eval('tasks()[0]')));
+  assert.equal(h.eval('tasks().length'),0);assert.equal(h.calls.length,1);
+  h.calls[0].resolve({id:'google-deleted'});await tick();
+  assert.match(h.calls[1].path,/destinationTasklist=google-deleted/);
+  h.calls[1].resolve({id:'moved-a'});await tick();
+  assert.equal(h.calls[2].method,'DELETE');assert.equal(h.calls[2].path,'/lists/google-deleted/tasks/moved-a');
+  h.calls[2].resolve(null);await tick();assert.equal(h.eval('syncPending()'),false);
+});
+
+test('failed permanent deletes restore from the outbox and accept an already-deleted response on retry',async()=>{
+  const h=harness();h.eval("data.lists[0].title='Deleted'");
+  await h.context.run(()=>h.context.deleteTask(h.eval('tasks()[0]')));
+  h.calls[0].reject(Error('Connection lost'));await tick();
+  const restored=harness(new Map(h.storage));
+  restored.context.confirm=()=>{throw Error('Delete retry must not ask for confirmation');};
+  assert.equal(restored.eval('tasks().length'),1);assert.equal(restored.eval('syncPending()'),true);
+  restored.context.retrySync();assert.equal(restored.calls[0].method,'DELETE');
+  restored.calls[0].reject(Object.assign(Error('Already deleted'),{status:404}));await tick();
+  assert.equal(restored.eval('syncPending()'),false);assert.equal(restored.eval('syncFailure'),null);
 });

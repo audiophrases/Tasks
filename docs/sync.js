@@ -61,6 +61,11 @@ async function sendSyncOperation(op){
   }
   if(op.kind==='move')return api(taskPath+'/move?'+query,'POST');
   if(op.kind==='patch')return api(taskPath,'PATCH',op.changes);
+  if(op.kind==='permanentDelete'){
+    try{return await api(taskPath,'DELETE');}
+    catch(error){if(error.status!==404)throw error;}
+    return;
+  }
   if(op.kind==='delete'){
     // Old browser outboxes must also use the new, recoverable behavior.
     let destination=data.lists.find(item=>item.title.trim().toLowerCase()==='deleted');

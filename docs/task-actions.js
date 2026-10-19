@@ -31,9 +31,8 @@ function handleTaskShortcut(event) {
     const title = taskText(row, task).trim();
     void run(async () => {
       const before = visibleTasks(), index = before.indexOf(task);
-      if (title && title !== task.title) await patch(task, {title});
+      if (!isDeletedList() && title && title !== task.title) await patch(task, {title});
       deleteTask(task);
-      if (tasks().includes(task)) return; // Already in Deleted.
       const remaining = visibleTasks();
       const next = before.slice(index + 1).find(item => remaining.includes(item)) ||
         before.slice(0, index).reverse().find(item => remaining.includes(item));

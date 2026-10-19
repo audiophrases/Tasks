@@ -48,7 +48,7 @@ The task board fills the available width, and task/subtask titles wrap and expan
 
 A top-level task named **Archive** (case insensitive) starts a grey section containing that task and every project below it. Projects appear indented under Archive and retain their original subtasks. Completed subtasks, including cleared ones, appear only when **Show completed** is selected. Archived project headings remain visible. This grouping is visual; Google parent relationships are preserved. Moving a project above Archive returns it to its own colored group. List previews follow the same rule.
 
-New subtasks start with an empty title, from either the subtask button or Ctrl/Cmd + Enter. The × action moves a task and its subtasks to the **Deleted** list, creating that list if necessary. Tasks already in Deleted stay there. Taskflow uses Google's native list move, preserving task details instead of recreating or permanently deleting tasks. Real cross-list moves still need verification with an authorized Google account.
+New subtasks start with an empty title, from either the subtask button or Ctrl/Cmd + Enter. The × action moves a task and its subtasks to the **Deleted** list, creating that list if necessary. Inside Deleted, the same × action or keyboard shortcut permanently deletes the task and its subtasks without confirmation. Taskflow uses Google's native list move when sending tasks to Deleted, preserving task details. Real cross-list moves still need verification with an authorized Google account.
 
 ## Shortcuts
 
@@ -57,7 +57,7 @@ New subtasks start with an empty title, from either the subtask button or Ctrl/C
 - Tab / Shift + Tab anywhere in a task title: indent / outdent
 - Alt + Up / Down: reorder; subtasks move within their group and into the adjacent parent group at a boundary
 - Alt + Enter (or Ctrl/Cmd + Shift + Enter): complete / reopen the focused task
-- Ctrl/Cmd + Delete: move the focused task and its subtasks to Deleted (Mac also supports Cmd + Backspace)
+- Ctrl/Cmd + Delete: move the focused task and its subtasks to Deleted; inside Deleted, permanently delete them without confirmation (Mac also supports Cmd + Backspace)
 - Ctrl/Cmd + C with no text highlighted: copy the whole focused task title; highlighted text copies normally
 - Each task also has a Copy text button
 - Alt + L: open list columns with task previews; Left/Right cycle lists, Up/Down scroll tasks, Enter opens the list, Esc cancels

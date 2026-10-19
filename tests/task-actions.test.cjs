@@ -18,7 +18,8 @@ function harness(options = {}) {
     busy:options.busy||false,showCompleted:false,
     run(fn){work=fn();return work;},
     async patch(value,changes){patches.push(changes);Object.assign(value,changes);},
-    deleteTask(value){deleted.push(value);if(!options.inDeleted)items.splice(items.indexOf(value),1);},
+    isDeletedList(){return Boolean(options.inDeleted);},
+    deleteTask(value){deleted.push(value);items.splice(items.indexOf(value),1);},
     ordered(){return items;},focus(id){focused.push(id);},$(){return {focus(){focused.push('quick');}};},
     visibleTasks(){return items.filter(item=>options.archived || item.status!=='completed');},
   };
@@ -97,7 +98,8 @@ test('delete shortcut ignores held keys, composition, and busy operations',()=>{
   assert.equal(h.deleted.length,0);assert.equal(h.patches.length,0);
 });
 
-test('already-deleted tasks keep focus when the move action leaves them in place',async()=>{
-  const h=harness({inDeleted:true});h.context.handleTaskShortcut(h.event({key:'Delete'}));
-  await h.work;assert.deepEqual(h.focused,[]);assert.equal(h.context.tasks()[0],h.task);
+test('the same shortcut removes tasks in Deleted without saving an unnecessary title edit',async()=>{
+  const h=harness({inDeleted:true,neighbor:true});h.context.handleTaskShortcut(h.event({key:'Delete'}));
+  await h.work;assert.deepEqual(h.focused,['b']);assert.equal(h.context.tasks().length,1);
+  assert.equal(h.deleted[0],h.task);assert.equal(h.patches.length,0);
 });
