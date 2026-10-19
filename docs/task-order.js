@@ -25,17 +25,13 @@ async function add(title, parent, previous) {
   if (!title.trim()) return;
   validateParent(parent);
   previous = previousAnchor(parent, previous);
-  let task = {id:uid(),title:title.trim(),status:'needsAction',...(parent ? {parent} : {})};
-  if (token) {
-    const query = new URLSearchParams();
-    if (parent) query.set('parent', parent);
-    if (previous) query.set('previous', previous);
-    task = await api(base() + '?' + query, 'POST', {title:task.title});
-  }
+  const task = {id:'pending:'+uid(),title:title.trim(),status:'needsAction',...(parent ? {parent} : {})};
+  const listId=list;
   const items = tasks();
   const index = previous ? items.findIndex(item => item.id === previous) + 1
     : parent ? items.findIndex(item => item.id === parent) + 1 : 0;
   items.splice(index, 0, task);
+  if(token)enqueueSync({kind:'create',listId,id:task.id,title:task.title,parent,previous});
   focus(task.id);
 }
 
@@ -47,21 +43,15 @@ async function move(task, parent, previous) {
     throw Error('Move this task’s subtasks out first.');
   }
   previous = previousAnchor(parent, previous, task.id);
-  let updated;
-  if (token) {
-    const query = new URLSearchParams();
-    if (parent) query.set('parent', parent);
-    if (previous) query.set('previous', previous);
-    updated = await api(base() + '/' + encodeURIComponent(task.id) + '/move?' + query, 'POST');
-  }
+  const listId=list;
   const items = tasks();
   items.splice(items.indexOf(task), 1);
-  if (updated) Object.assign(task, updated);
   if (parent) task.parent = parent;
   else delete task.parent;
   const index = previous ? items.findIndex(item => item.id === previous) + 1
     : parent ? items.findIndex(item => item.id === parent) + 1 : 0;
   items.splice(index, 0, task);
+  if(token)enqueueSync({kind:'move',listId,id:task.id,parent,previous});
   focus(task.id);
 }
 

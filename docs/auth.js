@@ -44,6 +44,7 @@ function pinplayAccountHint() {
 }
 
 async function signOut() {
+  if(syncPending()){notify('Finish syncing your pending changes before signing out.');return;}
   try { await forgetGoogleSession(); }
   catch { notify('Signed out on this browser. The server connection could not be removed; it will expire automatically.'); }
   token = null;
@@ -104,10 +105,15 @@ async function connection() {
         try {
           busy = true;
           document.body.classList.add('busy');
+          if(syncPending()){
+            const lists=await all('/users/@me/lists');
+            if(!lists.some(item=>item.id===syncScope))throw Error('Reconnect the Google account with your pending changes.');
+          }
           await reload();
           rememberBrowserSession(remember.checked && !usePersistence);
           $('#modal').close();
-          notify('Google Tasks connected. Your lists are ready.');
+          render();
+          notify(syncPending()?'Reconnected. Use Retry sync to send your pending changes.':'Google Tasks connected. Your lists are ready.');
           startGoogleRefresh();
         } catch (failure) {
           token = null;

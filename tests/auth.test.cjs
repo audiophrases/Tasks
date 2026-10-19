@@ -16,7 +16,7 @@ function harness(options = {}) {
     hasGrantedAllScopes(){return options.granted !== false;},
   };
   const context = {
-    $, modal(){}, notify(){}, render(){},
+    $, modal(){}, notify(){}, render(){},syncPending:()=>false,
     window:{google:{accounts:{oauth2}}},
     fetch:async () => {fetches++;return {ok:true,json:async()=>({loginEnabled:true,googleClientId:'pinplay.apps.googleusercontent.com'})};},
     AbortSignal, setTimeout,clearTimeout,setInterval(){return 1;},clearInterval(){},
@@ -81,4 +81,18 @@ test('Remember me is optional even when long-lived sessions are configured',asyn
   h.$('#authorize').onclick();assert.equal(h.request.code,undefined);
   await h.config.callback({access_token:'current-tab',expires_in:3600});
   assert.equal(h.context.token,'current-tab');
+});
+
+test('sign out waits for pending background writes instead of losing them',async()=>{
+  const h=harness();h.context.token='access';h.context.syncPending=()=>true;
+  let logouts=0;h.context.forgetGoogleSession=async()=>logouts++;
+  await h.context.signOut();assert.equal(logouts,0);assert.equal(h.context.token,'access');
+});
+
+test('reconnection cannot send a pending outbox to a different Google account',async()=>{
+  const h=harness();h.context.syncPending=()=>true;h.context.syncScope='original-list';
+  h.context.all=async()=>[{id:'another-account-list'}];
+  await h.context.connection();await h.config.callback({access_token:'wrong-account',expires_in:3600});
+  assert.equal(h.reads,0);assert.equal(h.context.token,null);
+  assert.match(h.$('#autherror').textContent,/account with your pending changes/);
 });

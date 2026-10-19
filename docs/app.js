@@ -13,24 +13,67 @@ function renderTaskGroups(visible){
   }
   return [...groups.values()].map((group,index)=>`<div class="task-group group-${index%7}">${group.map(renderTaskRow).join('')}</div>`).join('');
 }
-function render(){if(!token){data={lists:[],tasks:{}};list=null;selected=null;}$('#quick').disabled=!token||!list;$('#newlist').disabled=!token;$('#connection').textContent=token?'Google Tasks connected':'Not signed in';$('#connect').innerHTML=token?'Google connection <span>✓</span>':'Connect Google Tasks <span>↗</span>';$('#status').textContent=token?'Synced with Google Tasks':'Sign in to view your tasks';$('#lists').innerHTML=data.lists.map(l=>`<button data-list="${esc(l.id)}" class="${l.id===list?'active':''}"><span>☷</span>${esc(l.title)}<span>${(data.tasks[l.id]||[]).filter(t=>t.status!=='completed').length}</span></button>`).join('');$('#listtitle').textContent=data.lists.find(l=>l.id===list)?.title||'Tasks';$('#count').textContent=tasks().filter(t=>t.status!=='completed').length;const visible=ordered().filter(t=>showCompleted||t.status!=='completed');$('#empty').hidden=!token||visible.length>0;$('#tasks').innerHTML=renderTaskGroups(visible);$('#togglecompleted').textContent=showCompleted?'Hide completed':'Show completed';}
+function render(){if(!token&&!syncPending()){data={lists:[],tasks:{}};list=null;selected=null;}$('#quick').disabled=!token||!list;$('#newlist').disabled=!token;$('#connection').textContent=token?'Google Tasks connected':'Not signed in';$('#connect').innerHTML=token?'Google connection <span>✓</span>':'Connect Google Tasks <span>↗</span>';updateSyncStatus();$('#lists').innerHTML=data.lists.map(l=>`<button data-list="${esc(l.id)}" class="${l.id===list?'active':''}"><span>☷</span>${esc(l.title)}<span>${(data.tasks[l.id]||[]).filter(t=>t.status!=='completed').length}</span></button>`).join('');$('#listtitle').textContent=data.lists.find(l=>l.id===list)?.title||'Tasks';$('#count').textContent=tasks().filter(t=>t.status!=='completed').length;const visible=ordered().filter(t=>showCompleted||t.status!=='completed');$('#empty').hidden=!token||visible.length>0;$('#tasks').innerHTML=renderTaskGroups(visible);$('#togglecompleted').textContent=showCompleted?'Hide completed':'Show completed';}
 function focus(id){selected=id;render();const input=[...document.querySelectorAll('.row')].find(r=>r.dataset.id===id)?.querySelector('input');input?.focus()}
-async function api(path,method='GET',body){await ensureGoogleSession();const r=await fetch('https://tasks.googleapis.com/tasks/v1'+path,{method,headers:{Authorization:'Bearer '+token,...(body?{'Content-Type':'application/json'}:{})},...(body?{body:JSON.stringify(body)}:{})});if(r.status===204)return null;const j=await r.json();if(!r.ok)throw Error(j.error?.message||'Google Tasks request failed');return j}
+async function api(path,method='GET',body){await ensureGoogleSession();const r=await fetch('https://tasks.googleapis.com/tasks/v1'+path,{method,signal:AbortSignal.timeout(20000),headers:{Authorization:'Bearer '+token,...(body?{'Content-Type':'application/json'}:{})},...(body?{body:JSON.stringify(body)}:{})});if(r.status===204)return null;const j=await r.json();if(!r.ok)throw Object.assign(Error(j.error?.message||'Google Tasks request failed'),{status:r.status});return j}
 async function all(path){let items=[],page;do{const j=await api(path+(path.includes('?')?'&':'?')+'maxResults=100'+(page?'&pageToken='+encodeURIComponent(page):''));items.push(...(j.items||[]));page=j.nextPageToken}while(page);return items}
-async function reload(){const lists=await all('/users/@me/lists');let next={lists,tasks:{}};for(const l of lists)next.tasks[l.id]=(await all(`/lists/${encodeURIComponent(l.id)}/tasks?showCompleted=true&showHidden=true`)).sort((a,b)=>(a.position||'').localeCompare(b.position||''));data=next;if(!lists.some(l=>l.id===list))list=lists[0]?.id;render()}
-async function run(fn){if(busy)return;if(!token){void connection();return;}busy=true;document.body.classList.add('busy');try{await fn();const active=document.activeElement,editing=active?.matches('.title'),id=active?.closest('.row')?.dataset.id,start=active?.selectionStart;render();if(editing&&id){const input=[...document.querySelectorAll('.row')].find(r=>r.dataset.id===id)?.querySelector('input');input?.focus();input?.setSelectionRange(start,start)}}catch(e){notify(e.message+' Your changes may need a refresh.');if(token){try{await reload()}catch{}}if(!token){render();void connection();}}finally{busy=false;document.body.classList.remove('busy')}}
-async function patch(t,changes){if(token)await api(base()+'/'+encodeURIComponent(t.id),'PATCH',changes);Object.assign(t,changes)}
+let backgroundRead=null;
+async function reload(){
+  if(backgroundRead)return backgroundRead;
+  if(syncPending())return;
+  const revision=syncRevision;
+  const workspace=data;
+  const read=(async()=>{
+    const lists=await all('/users/@me/lists');
+    const entries=await Promise.all(lists.map(async item=>[item.id,(await all(`/lists/${encodeURIComponent(item.id)}/tasks?showCompleted=true&showHidden=true`)).sort((a,b)=>(a.position||'').localeCompare(b.position||''))]));
+    if(syncRevision!==revision||syncPending()||data!==workspace||!token)return;
+    // Keep the editor and its unsaved text intact during automatic refreshes.
+    if(document.activeElement?.matches('.title'))return;
+    const next={lists,tasks:Object.fromEntries(entries)};
+    data=restoreSyncDraft(next)||next;
+    if(!data.lists.some(item=>item.id===list))list=data.lists[0]?.id;
+    render();
+  })();
+  backgroundRead=read;
+  try{await read;}finally{if(backgroundRead===read)backgroundRead=null;}
+}
+async function backgroundRefresh(){
+  try{await reload();}catch(error){updateSyncStatus();if(!token&&!syncPending()){render();void connection();}else notify('Could not refresh Google Tasks. Your edits are unchanged.');}
+}
+async function run(fn){
+  if(busy)return;
+  if(!token){void connection();return;}
+  busy=true;
+  try{
+    await fn();
+    const active=document.activeElement,editing=active?.matches('.title'),id=active?.closest('.row')?.dataset.id,start=active?.selectionStart,end=active?.selectionEnd,draft=editing?active.value:null;
+    render();
+    if(editing&&id){const input=[...document.querySelectorAll('.row')].find(row=>row.dataset.id===id)?.querySelector('input');if(input){input.value=draft;input.focus();input.setSelectionRange(start,end);}}
+  }catch(error){notify(error.message);}
+  finally{busy=false;}
+}
+async function patch(task,changes){Object.assign(task,changes);enqueueSync({kind:'patch',listId:list,id:task.id,changes:{...changes}});}
+function createList(title){
+  const item={id:'pending:'+uid(),title};
+  data.lists.push(item);data.tasks[item.id]=[];list=item.id;
+  enqueueSync({kind:'createList',id:item.id,title});
+}
+function deleteTask(task){
+  const listId=list;
+  data.tasks[listId]=tasks().filter(item=>item.id!==task.id&&item.parent!==task.id);
+  enqueueSync({kind:'delete',listId,id:task.id});
+}
 function modal(html){$('#modalbody').innerHTML=html;$('#modal').showModal()}
 function shortcuts(){modal('<span class="eyebrow">KEEP YOUR HANDS IN FLOW</span><h2>A shortcut to simple.</h2>'+[['Switch list','Alt + L'],['New task','N'],['Add next task','Enter'],['Add subtask','Ctrl / ⌘ + Enter'],['Indent / outdent','Tab / Shift + Tab'],['Reorder task','Alt + ↑ / ↓'],['Navigate tasks','↑ / ↓'],['Complete / reopen task','Alt + Enter'],['Also complete / reopen','Ctrl / ⌘ + Shift + Enter'],['Copy task text (no selection)','Ctrl / ⌘ + C'],['Show shortcuts','?'],['Leave task / close dialog','Esc']].map(([a,b])=>`<div class="shortcut"><span>${a}</span><kbd>${b}</kbd></div>`).join('')+'<p>Task shortcuts work while editing a task. Tab and Shift + Tab change the task’s level from anywhere in its title. Press Esc to leave the title.</p>')}
-$('#connect').onclick=connection;$('#shortcuts').onclick=shortcuts;$('#help').onclick=shortcuts;$('#tipclose').onclick=()=>$('.tip').remove();$('#togglecompleted').onclick=()=>{showCompleted=!showCompleted;render()};$('#refresh').onclick=()=>token?run(reload):connection();
+$('#connect').onclick=connection;$('#shortcuts').onclick=shortcuts;$('#help').onclick=shortcuts;$('#tipclose').onclick=()=>$('.tip').remove();$('#togglecompleted').onclick=()=>{showCompleted=!showCompleted;render()};$('#refresh').onclick=()=>syncFailure?retrySync():token?backgroundRefresh():connection();$('#retrysync').onclick=retrySync;
 $('#quick').onkeydown=e=>{if(e.key==='Enter'&&e.target.value.trim()){const title=e.target.value;run(async()=>{await add(title,null,tasks().filter(t=>!t.parent&&!t.hidden&&!t.deleted).at(-1)?.id);$('#quick').value=''})}};
 $('#lists').onclick=e=>{const b=e.target.closest('[data-list]');if(b&&!busy){list=b.dataset.list;selected=null;render()}};
-$('#newlist').onclick=()=>{if(!token){void connection();return;}modal('<h2>A fresh list</h2><label for="listname">List name</label><input id="listname" placeholder="What’s on your mind?"><button id="createlist" class="primary">Create list</button>');$('#listname').focus();const create=()=>{const title=$('#listname').value.trim();if(!title)return;$('#modal').close();run(async()=>{const l=await api('/users/@me/lists','POST',{title});data.lists.push(l);data.tasks[l.id]=[];list=l.id})};$('#createlist').onclick=create;$('#listname').onkeydown=e=>{if(e.key==='Enter')create()}};
+$('#newlist').onclick=()=>{if(!token){void connection();return;}modal('<h2>A fresh list</h2><label for="listname">List name</label><input id="listname" placeholder="What’s on your mind?"><button id="createlist" class="primary">Create list</button>');$('#listname').focus();const create=()=>{const title=$('#listname').value.trim();if(!title)return;$('#modal').close();run(async()=>{createList(title)})};$('#createlist').onclick=create;$('#listname').onkeydown=e=>{if(e.key==='Enter')create()}};
 $('#tasks').addEventListener('focusin',e=>{const r=e.target.closest('.row');if(r){selected=r.dataset.id;document.querySelectorAll('.row').forEach(x=>x.classList.toggle('selected',x===r))}});
 $('#tasks').addEventListener('change',e=>{if(!e.target.matches('.title'))return;const t=tasks().find(t=>t.id===e.target.closest('.row').dataset.id);const title=e.target.value.trim();if(title&&title!==t.title)run(()=>patch(t,{title}));else e.target.value=t.title});
-$('#tasks').onclick=e=>{const b=e.target.closest('[data-action]'),r=e.target.closest('.row');if(!b||!r)return;const t=tasks().find(t=>t.id===r.dataset.id);if(b.dataset.action==='copy'){void copyTaskText(r,t);return}run(async()=>{switch(b.dataset.action){case 'check':await patch(t,{status:t.status==='completed'?'needsAction':'completed'});break;case 'sub':await add('New subtask',t.parent||t.id,tasks().filter(x=>x.parent===(t.parent||t.id)&&!x.hidden&&!x.deleted).at(-1)?.id);break;case 'up':await reorder(t,-1);break;case 'down':await reorder(t,1);break;case 'delete':if(!confirm('Delete this task'+(tasks().some(x=>x.parent===t.id)?' and its subtasks':'')+'?'))return;if(token)await api(base()+'/'+encodeURIComponent(t.id),'DELETE');data.tasks[list]=tasks().filter(x=>x.id!==t.id&&x.parent!==t.id);break}})};
+$('#tasks').onclick=e=>{const b=e.target.closest('[data-action]'),r=e.target.closest('.row');if(!b||!r)return;const t=tasks().find(t=>t.id===r.dataset.id);if(b.dataset.action==='copy'){void copyTaskText(r,t);return}run(async()=>{switch(b.dataset.action){case 'check':await patch(t,{status:t.status==='completed'?'needsAction':'completed'});break;case 'sub':await add('New subtask',t.parent||t.id,tasks().filter(x=>x.parent===(t.parent||t.id)&&!x.hidden&&!x.deleted).at(-1)?.id);break;case 'up':await reorder(t,-1);break;case 'down':await reorder(t,1);break;case 'delete':if(!confirm('Delete this task'+(tasks().some(x=>x.parent===t.id)?' and its subtasks':'')+'?'))return;deleteTask(t);break}})};
 $('#tasks').onkeydown=e=>{if(handleTaskShortcut(e))return;const r=e.target.closest('.row');if(!r||busy)return;const t=tasks().find(t=>t.id===r.dataset.id),mod=e.ctrlKey||e.metaKey;const isInput=e.target.matches('.title');if(e.key==='Tab'&&isInput&&!mod&&!e.altKey){e.preventDefault();run(async()=>{const title=e.target.value.trim();if(title&&title!==t.title)await patch(t,{title});await indent(t,e.shiftKey)})}else if(e.altKey&&['ArrowUp','ArrowDown'].includes(e.key)){e.preventDefault();run(async()=>{const title=isInput?e.target.value.trim():'';if(title&&title!==t.title)await patch(t,{title});await reorder(t,e.key==='ArrowUp'?-1:1)})}else if(e.key==='Enter'&&isInput){e.preventDefault();run(async()=>{const title=e.target.value.trim();if(title&&title!==t.title)await patch(t,{title});if(mod&&e.shiftKey)await patch(t,{status:t.status==='completed'?'needsAction':'completed'});else if(mod)await add('New subtask',t.parent||t.id,tasks().filter(x=>x.parent===(t.parent||t.id)&&!x.hidden&&!x.deleted).at(-1)?.id);else await add('New task',t.parent,t.id)})}else if(['ArrowUp','ArrowDown'].includes(e.key)&&!mod){e.preventDefault();const a=ordered().filter(x=>showCompleted||x.status!=='completed'),i=a.indexOf(t)+(e.key==='ArrowUp'?-1:1);if(a[i])focus(a[i].id)}else if(e.key==='Escape'){e.target.blur();$('#quick').focus()}};
 $('#tasks').ondragstart=e=>{const r=e.target.closest('.row');if(!r||busy)return;drag=r.dataset.id;e.dataTransfer.setData('text/plain',drag);e.dataTransfer.effectAllowed='move'};$('#tasks').ondragover=e=>{if(drag)e.preventDefault()};$('#tasks').ondrop=e=>{e.preventDefault();const r=e.target.closest('.row');if(!r||!drag)return;const t=tasks().find(x=>x.id===drag),target=tasks().find(x=>x.id===r.dataset.id);drag=null;if(t&&target&&t.id!==target.id)run(()=>move(t,target.parent,target.id))};$('#tasks').ondragend=()=>drag=null;
-document.addEventListener('keydown',e=>{if($('#modal').open||$('#listpicker').open||e.target.matches('input,textarea')||e.ctrlKey||e.metaKey||e.altKey)return;if(e.key==='?'){e.preventDefault();shortcuts()}if(e.key.toLowerCase()==='n'){e.preventDefault();$('#quick').focus()}});document.addEventListener('visibilitychange',()=>{if((token||savedGoogleSession())&&!busy&&document.visibilityState==='visible')run(reload)});render();
+document.addEventListener('keydown',e=>{if($('#modal').open||$('#listpicker').open||e.target.matches('input,textarea')||e.ctrlKey||e.metaKey||e.altKey)return;if(e.key==='?'){e.preventDefault();shortcuts()}if(e.key.toLowerCase()==='n'){e.preventDefault();$('#quick').focus()}});document.addEventListener('visibilitychange',()=>{if((token||savedGoogleSession())&&!busy&&document.visibilityState==='visible')void backgroundRefresh()});render();
 async function initialize(){await restoreGoogleSession();if(!token)await connection();}
 void initialize();

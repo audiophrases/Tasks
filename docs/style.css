@@ -82,3 +82,5 @@ main>header{justify-content:flex-end;margin-bottom:20px}
 #sidebar-toggle{position:fixed;top:14px;left:16px;z-index:2;width:34px;height:34px;border:1px solid #cbd8c9;border-radius:9px;background:#f6f9f3;color:#000;font-size:20px;display:grid;place-items:center;box-shadow:0 2px 7px #243c230d}
 body.sidebar-collapsed main{margin-left:0;width:100%}
 @media(max-width:650px){#sidebar{padding-top:60px}}
+
+#retrysync{font-size:11px;font-weight:700;text-decoration:underline;color:#9b2c19;white-space:nowrap}

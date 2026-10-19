@@ -114,7 +114,7 @@ async function ensureGoogleSession() {
 function startGoogleRefresh() {
   clearInterval(refreshTimer);
   refreshTimer=setInterval(()=>{
-    if(!busy&&document.visibilityState==='visible'&&(savedGoogleSession()||Date.now()<expires))run(reload);
+    if(!busy&&document.visibilityState==='visible'&&(savedGoogleSession()||Date.now()<expires))void backgroundRefresh();
   },60000);
 }
 

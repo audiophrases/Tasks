@@ -7,11 +7,12 @@ function harness(items, options = {}) {
   const calls = [];
   const context = {
     tasks:()=>items,token:options.connected !== false,showCompleted:false,
-    uid:()=> 'new',URLSearchParams,base:()=>'/lists/list/tasks',focus(){},
-    api:async(path,method,body)=>{
-      calls.push({path,method,body});
-      if(options.fail)throw Error('Previous task id not found');
-      return body ? {id:'new',title:body.title,status:'needsAction',...(new URLSearchParams(path.split('?')[1]).get('parent')?{parent:new URLSearchParams(path.split('?')[1]).get('parent')}:{})} : {position:'updated-position'};
+    list:'list',uid:()=> 'new',URLSearchParams,base:()=>'/lists/list/tasks',focus(){},
+    enqueueSync(op){
+      const query=new URLSearchParams();
+      if(op.parent)query.set('parent',op.parent);
+      if(op.previous)query.set('previous',op.previous);
+      calls.push({path:'/lists/list/tasks'+(op.kind==='move'?'/'+op.id+'/move':'')+'?'+query,op});
     },
   };
   vm.createContext(context);vm.runInContext(fs.readFileSync('docs/task-order.js','utf8'),context);
@@ -30,11 +31,11 @@ test('hidden-only siblings omit previous instead of sending an invalid Google id
   await h.context.add('New child','parent','cleared');
   assert.equal(new URLSearchParams(h.calls[0].path.split('?')[1]).has('previous'),false);
 });
-test('reorder uses visible sibling order and updates provider position',async()=>{
+test('reorder uses visible sibling order and queues a provider move',async()=>{
   const h=harness([task('a'),task('hidden',{hidden:true,status:'completed'}),task('done',{status:'completed'}),task('b')]);
   await h.context.reorder(h.items[0],1);
   assert.equal(new URLSearchParams(h.calls[0].path.split('?')[1]).get('previous'),'b');
-  assert.equal(h.items.find(t=>t.id==='a').position,'updated-position');
+  assert.equal(h.calls[0].op.kind,'move');
 });
 test('moving a parent keeps children attached in rendered order',async()=>{
   const h=harness([task('a'),task('child',{parent:'a'}),task('b')],{connected:false});
@@ -58,11 +59,12 @@ test('unknown or wrong-parent anchors are rejected before a Google write',async(
   await assert.rejects(h.context.add('New',undefined,'deleted-id'),/order changed/);
   assert.equal(h.calls.length,0);
 });
-test('a failed Google move preserves local order and is never automatically replayed',async()=>{
-  const h=harness([task('a'),task('b')],{fail:true});
-  await assert.rejects(h.context.reorder(h.items[0],1),/Previous task/);
-  assert.deepEqual(h.items.map(t=>t.id),['a','b']);assert.equal(h.calls.length,1);
+test('reorder applies locally before background acknowledgement',async()=>{
+  const h=harness([task('a'),task('b')]);
+  await h.context.reorder(h.items[0],1);
+  assert.deepEqual(h.items.map(t=>t.id),['b','a']);assert.equal(h.calls.length,1);
 });
+
 test('cleared parents cannot be used for new subtasks',async()=>{
   const h=harness([task('hidden',{hidden:true,status:'completed'})]);
   await assert.rejects(h.context.add('New','hidden'),/parent task/);
