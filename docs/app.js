@@ -63,7 +63,12 @@ async function run(fn){
   }catch(error){notify(error.message);}
   finally{busy=false;}
 }
-async function patch(task,changes){Object.assign(task,changes);enqueueSync({kind:'patch',listId:list,id:task.id,changes:{...changes}});}
+async function patch(task,changes,options){Object.assign(task,changes);enqueueSync({kind:'patch',listId:list,id:task.id,changes:{...changes}},options);}
+function saveTaskTitle(event){
+  if(event.isComposing||!token||!event.target.matches('.title'))return;
+  const task=tasks().find(item=>item.id===event.target.closest('.row')?.dataset.id);
+  if(task&&task.title!==event.target.value)void patch(task,{title:event.target.value},{delay:700});
+}
 function createList(title,{select=true}={}){
   const item={id:'pending:'+uid(),title};
   data.lists.push(item);data.tasks[item.id]=[];if(select)list=item.id;
@@ -97,7 +102,9 @@ $('#quick').onkeydown=e=>{if(e.key==='Enter'&&!e.isComposing&&list){e.preventDef
 $('#lists').onclick=e=>{const b=e.target.closest('[data-list]');if(b&&!busy){list=b.dataset.list;selected=null;render();saveTaskCache()}};
 $('#newlist').onclick=()=>{if(!token){void connection();return;}modal('<h2>A fresh list</h2><label for="listname">List name</label><input id="listname" placeholder="What’s on your mind?"><button id="createlist" class="primary">Create list</button>');$('#listname').focus();const create=()=>{const title=$('#listname').value.trim();if(!title)return;$('#modal').close();run(async()=>{createList(title)})};$('#createlist').onclick=create;$('#listname').onkeydown=e=>{if(e.key==='Enter')create()}};
 $('#tasks').addEventListener('focusin',e=>{const r=e.target.closest('.row');if(r){selected=r.dataset.id;document.querySelectorAll('.row').forEach(x=>x.classList.toggle('selected',x===r))}});
-$('#tasks').addEventListener('change',e=>{if(!e.target.matches('.title'))return;const t=tasks().find(t=>t.id===e.target.closest('.row').dataset.id);if(!t)return;const title=e.target.value.trim();if(title&&title!==t.title)run(()=>patch(t,{title}));else e.target.value=t.title});
+$('#tasks').addEventListener('input',saveTaskTitle);
+$('#tasks').addEventListener('compositionend',saveTaskTitle);
+$('#tasks').addEventListener('change',e=>{if(!e.target.matches('.title'))return;const t=tasks().find(t=>t.id===e.target.closest('.row').dataset.id);if(!t)return;flushTitleSync(list,t.id);const title=e.target.value.trim();if(title&&title!==t.title)run(()=>patch(t,{title}));else e.target.value=t.title});
 $('#tasks').onclick=e=>{const b=e.target.closest('[data-action]'),r=e.target.closest('.row');if(!b||!r)return;const t=tasks().find(t=>t.id===r.dataset.id);if(b.dataset.action==='copy'){void copyTaskText(r,t);return}run(async()=>{switch(b.dataset.action){case 'check':await patch(t,{status:t.status==='completed'?'needsAction':'completed'});break;case 'sub':await add('',t.parent||t.id,tasks().filter(x=>x.parent===(t.parent||t.id)&&!x.hidden&&!x.deleted).at(-1)?.id,{allowEmpty:true});break;case 'up':await reorder(t,-1);break;case 'down':await reorder(t,1);break;case 'delete':deleteTask(t);break}})};
 $('#tasks').onkeydown=e=>{if(handleTaskShortcut(e))return;const r=e.target.closest('.row');if(!r||busy)return;const t=tasks().find(t=>t.id===r.dataset.id),mod=e.ctrlKey||e.metaKey;const isInput=e.target.matches('.title');if(e.key==='Tab'&&isInput&&!mod&&!e.altKey){e.preventDefault();run(async()=>{const title=e.target.value.trim();if(title&&title!==t.title)await patch(t,{title});await indent(t,e.shiftKey)})}else if(e.altKey&&['ArrowUp','ArrowDown'].includes(e.key)){e.preventDefault();run(async()=>{const title=isInput?e.target.value.trim():'';if(title&&title!==t.title)await patch(t,{title});await reorder(t,e.key==='ArrowUp'?-1:1)})}else if(e.key==='Enter'&&isInput){e.preventDefault();run(async()=>{const title=e.target.value.trim();if(title&&title!==t.title)await patch(t,{title});if(mod&&e.shiftKey)await patch(t,{status:t.status==='completed'?'needsAction':'completed'});else if(mod)await add('',t.parent||t.id,tasks().filter(x=>x.parent===(t.parent||t.id)&&!x.hidden&&!x.deleted).at(-1)?.id,{allowEmpty:true});else await add('',t.parent,t.id,{allowEmpty:true})})}else if(['ArrowUp','ArrowDown'].includes(e.key)&&!mod){e.preventDefault();const a=visibleTasks(),i=a.indexOf(t)+(e.key==='ArrowUp'?-1:1);if(a[i])focus(a[i].id)}else if(e.key==='Escape'){e.target.blur();$('#quick').focus()}};
 $('#tasks').ondragstart=e=>{const r=e.target.closest('.row');if(!r||busy)return;drag=r.dataset.id;e.dataTransfer.setData('text/plain',drag);e.dataTransfer.effectAllowed='move'};$('#tasks').ondragover=e=>{if(drag)e.preventDefault()};$('#tasks').ondrop=e=>{e.preventDefault();const r=e.target.closest('.row');if(!r||!drag)return;const t=tasks().find(x=>x.id===drag),target=tasks().find(x=>x.id===r.dataset.id);drag=null;if(t&&target&&t.id!==target.id)run(()=>move(t,target.parent,target.id))};$('#tasks').ondragend=()=>drag=null;

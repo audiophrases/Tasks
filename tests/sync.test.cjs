@@ -5,21 +5,30 @@ const vm=require('node:vm');
 const tick=()=>new Promise(resolve=>setImmediate(resolve));
 function deferred(){let resolve,reject;const promise=new Promise((a,b)=>{resolve=a;reject=b;});return {promise,resolve,reject};}
 function harness(storage=new Map()){
-  const elements=new Map(),messages=[],events={},calls=[];let serial=0;
-  const $=selector=>{if(!elements.has(selector))elements.set(selector,{style:{},addEventListener(){},focus(){},setSelectionRange(){}});return elements.get(selector);};
+  const elements=new Map(),messages=[],events={},calls=[],timers=new Map();let serial=0,timerId=0,now=Date.now();
+  class TestDate extends Date{static now(){return now;}}
+  const $=selector=>{if(!elements.has(selector))elements.set(selector,{style:{},listeners:{},addEventListener(name,fn){this.listeners[name]=fn;},focus(){},setSelectionRange(){}});return elements.get(selector);};
   const context={resizeTaskTitles(){},resizeTaskTitle(){},URLSearchParams,console,crypto:{randomUUID:()=>String(++serial)},
     localStorage:{getItem:key=>storage.get(key)||null,setItem:(key,value)=>storage.set(key,value),removeItem:key=>storage.delete(key)},
     window:{addEventListener:(name,fn)=>events[name]=fn},
     document:{querySelector:$,querySelectorAll:()=>[],addEventListener(){},body:{classList:{add(){throw Error('Foreground must not disable the board');},remove(){}}}},
     connection:async()=>{},restoreGoogleSession:async()=>{},handleTaskShortcut(){},
-    setTimeout:()=>1,clearTimeout(){},confirm:()=>true,
+    Date:TestDate,setTimeout(fn,delay){const id=++timerId;timers.set(id,{fn,at:now+delay});return id;},clearTimeout:id=>timers.delete(id),confirm:()=>true,
   };
   vm.createContext(context);
   for(const name of ['sync','task-view','task-order','app'])vm.runInContext(fs.readFileSync('docs/'+name+'.js','utf8'),context);
   context.notify=message=>messages.push(message);
   context.api=async(path,method,body)=>{const request=deferred();calls.push({path,method,body,...request});return request.promise;};
   vm.runInContext("token='access';data={lists:[{id:'L',title:'Real list'},{id:'Other',title:'Other list'}],tasks:{L:[{id:'a',title:'A',status:'needsAction'},{id:'b',title:'B',status:'needsAction'}],Other:[]}};list='L';data=restoreSyncDraft(data)||data;render()",context);
-  return {context,calls,messages,storage,events,$,eval:source=>vm.runInContext(source,context)};
+  return {context,calls,messages,storage,events,$,eval:source=>vm.runInContext(source,context),
+    async advance(ms){now+=ms;for(const [id,timer] of timers)if(timer.at<=now){timers.delete(id);timer.fn();}await tick();},
+    input(id,value,extra={}){
+      const target={value,selectionStart:value.length,selectionEnd:value.length,matches:()=>true,closest:()=>({dataset:{id}})};
+      context.document.activeElement=target;
+      $('#tasks').listeners.input({target,...extra});
+      return target;
+    },
+  };
 }
 
 test('edits return immediately while Google is slow; writes serialize and acknowledgements cannot overwrite later edits',async()=>{
@@ -34,6 +43,64 @@ test('edits return immediately while Google is slow; writes serialize and acknow
   h.calls[1].resolve({title:'Second'});await tick();
   assert.equal(h.eval('syncPending()'),false);assert.equal(h.$('#status').textContent,'Synced with Google Tasks');
   assert.equal(h.storage.has('taskflow-outbox:L'),false);
+});
+
+test('typing tasks and subtasks saves locally immediately and syncs after a 700ms pause without leaving the editor',async()=>{
+  for(const parent of [undefined,'a']){
+    const h=harness();await tick();if(parent)h.eval("tasks()[1].parent='a'");
+    const input=h.input('b','Edited while focused');
+    assert.equal(h.eval('tasks()[1].title'),'Edited while focused');assert.equal(h.calls.length,0);
+    assert.equal(JSON.parse(h.storage.get('taskflow-outbox:L')).data.tasks.L[1].title,input.value);
+    await h.advance(699);assert.equal(h.calls.length,0);
+    await h.advance(1);assert.equal(h.calls.length,1);assert.equal(h.calls[0].body.title,input.value);
+    h.calls[0].resolve({title:'Older acknowledgement'});await tick();
+    assert.equal(h.context.document.activeElement,input);assert.equal(input.selectionStart,input.value.length);
+    assert.equal(h.eval('syncPending()'),false);assert.equal(h.eval('busy'),false);
+  }
+});
+
+test('typing bursts collapse to one latest title write and survive reloading before the delay expires',async()=>{
+  const h=harness();await tick();
+  h.input('a','One');await h.advance(200);
+  h.input('a','One two');await h.advance(200);
+  h.input('a','One two three');
+  assert.equal(h.eval('syncQueue.length'),1);
+  const reopened=harness(new Map(h.storage));await tick();
+  assert.equal(reopened.eval('tasks()[0].title'),'One two three');assert.equal(reopened.calls.length,0);
+  await h.advance(699);assert.equal(h.calls.length,0);
+  await h.advance(1);assert.equal(h.calls.length,1);assert.equal(h.calls[0].body.title,'One two three');
+  h.calls[0].resolve({});await tick();
+});
+
+test('new typing never mutates an in-flight title request or loses the newest text',async()=>{
+  const h=harness();await tick();h.input('a','First');await h.advance(700);
+  const latest=h.input('a','Latest text');await h.advance(700);
+  assert.equal(h.calls.length,1);assert.equal(h.calls[0].body.title,'First');
+  h.calls[0].resolve({title:'First'});await tick();
+  assert.equal(h.calls.length,2);assert.equal(h.calls[1].body.title,'Latest text');
+  h.calls[1].resolve({});await tick();
+  assert.equal(h.eval('tasks()[0].title'),'Latest text');assert.equal(latest.value,'Latest text');
+});
+
+test('blur flushes a pending title once and delayed writes retain the original list',async()=>{
+  const h=harness();await tick();const input=h.input('a','Finish now');
+  h.$('#tasks').listeners.change({target:input});await tick();
+  assert.equal(h.calls.length,1);h.calls[0].resolve({});await tick();
+  await h.advance(700);assert.equal(h.calls.length,1);
+  h.input('b','Save in original list');h.eval("list='Other';render()");
+  await h.advance(700);assert.match(h.calls[1].path,/^\/lists\/L\/tasks\/b$/);
+  h.calls[1].resolve({});await tick();
+});
+
+test('composition waits for committed text and clearing a title syncs an empty string',async()=>{
+  const h=harness();await tick();
+  const composing=h.input('a','Composing text',{isComposing:true});await h.advance(1000);
+  assert.equal(h.calls.length,0);assert.equal(h.eval('tasks()[0].title'),'A');
+  h.$('#tasks').listeners.compositionend({target:composing});
+  await h.advance(700);assert.equal(h.calls[0].body.title,'Composing text');
+  h.calls[0].resolve({});await tick();
+  h.input('a','');await h.advance(700);assert.equal(h.calls[1].body.title,'');
+  h.calls[1].resolve({});await tick();assert.equal(h.eval('tasks()[0].title'),'');
 });
 
 test('new parents, subtasks, edits and moves resolve temporary IDs without waiting in the foreground',async()=>{

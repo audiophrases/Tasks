@@ -1,5 +1,5 @@
 // Apply edits locally; serialize Google writes without blocking the task view.
-let syncQueue=[],syncRunning=false,syncFailure=null,syncRevision=0,syncScope=null;
+let syncQueue=[],syncRunning=false,syncFailure=null,syncRevision=0,syncScope=null,syncTimer=null;
 const syncAliases=new Map();
 const syncPending=()=>syncQueue.length>0;
 const TASK_CACHE_KEY='taskflow-task-cache-v1';
@@ -78,10 +78,24 @@ function restoreSyncDraft(remote){
   }
   return null;
 }
-function enqueueSync(operation){
+function titleSyncOperation(operation){
+  return operation.kind==='patch'&&Object.keys(operation.changes).length===1&&Object.hasOwn(operation.changes,'title');
+}
+function enqueueSync(operation,{delay=0}={}){
   syncRevision++;
-  syncQueue.push({...operation});
+  const previous=syncQueue.at(-1);
+  // Collapse typing bursts, but never change a request already sent to Google.
+  if(previous&&!previous.inFlight&&titleSyncOperation(operation)&&titleSyncOperation(previous)&&previous.id===operation.id&&previous.listId===operation.listId){
+    previous.changes={...operation.changes};
+    previous.readyAt=delay?Date.now()+delay:0;
+  }else syncQueue.push({...operation,...(delay?{readyAt:Date.now()+delay}:{})});
   saveSyncDraft();updateSyncStatus();
+  void flushSync();
+}
+function flushTitleSync(listId,id){
+  for(const operation of syncQueue){
+    if(titleSyncOperation(operation)&&(!listId||operation.listId===listId)&&(!id||operation.id===id))delete operation.readyAt;
+  }
   void flushSync();
 }
 async function sendSyncOperation(op){
@@ -120,11 +134,14 @@ async function sendSyncOperation(op){
   }
 }
 async function flushSync(){
+  if(syncTimer){clearTimeout(syncTimer);syncTimer=null;}
   if(syncRunning||syncFailure||!token||!syncPending())return;
   syncRunning=true;
   try{
     while(syncPending()&&token){
       const op=syncQueue[0];
+      const delay=(op.readyAt||0)-Date.now();
+      if(delay>0){syncTimer=setTimeout(()=>{syncTimer=null;void flushSync();},delay);break;}
       op.inFlight=true;saveSyncDraft();
       const result=await sendSyncOperation(op);
       if(op.kind==='create'||op.kind==='createList'){
@@ -153,5 +170,9 @@ function retrySync(){
   syncFailure=null;updateSyncStatus();void flushSync();
 }
 window.addEventListener('beforeunload',event=>{
+  flushTitleSync();
   if(syncPending()){saveSyncDraft();event.preventDefault();event.returnValue='';}
+});
+document.addEventListener('visibilitychange',()=>{
+  if(document.visibilityState==='hidden')flushTitleSync();
 });
