@@ -32,7 +32,7 @@ function taskInsertionIndex(parent, previous) {
 }
 
 async function add(title, parent, previous, {allowEmpty = false} = {}) {
-  if (!title.trim() && !(allowEmpty && parent)) return;
+  if (!title.trim() && !allowEmpty) return;
   validateParent(parent);
   previous = previousAnchor(parent, previous);
   const task = {id:'pending:'+uid(),title:title.trim(),status:'needsAction',...(parent ? {parent} : {})};

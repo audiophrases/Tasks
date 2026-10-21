@@ -66,6 +66,26 @@ test('new lists appear immediately and queued tasks use their eventual Google li
   assert.equal(h.eval('syncPending()'),false);
 });
 
+test('Enter creates and syncs a focused blank sibling for tasks and subtasks',async()=>{
+  for(const parent of [undefined,'a']){
+    const h=harness();
+    if(parent)h.eval("tasks()[1].parent='a'");
+    let prevented=false;
+    h.$('#tasks').onkeydown({key:'Enter',preventDefault(){prevented=true;},target:{
+      value:'B',matches:()=>true,closest:()=>({dataset:{id:'b'}}),
+    }});
+    await tick();
+    const created=h.eval('tasks()[2]');
+    assert.equal(prevented,true);assert.equal(created.title,'');
+    assert.equal(created.parent,parent);assert.equal(h.eval('selected'),created.id);
+    assert.equal(h.calls[0].body.title,'');
+    const query=new URLSearchParams(h.calls[0].path.split('?')[1]);
+    assert.equal(query.get('previous'),'b');assert.equal(query.get('parent'),parent||null);
+    h.calls[0].resolve({id:'blank-task',title:''});await tick();
+    assert.equal(h.eval('syncPending()'),false);
+  }
+});
+
 test('failures retain optimistic edits and dependent writes, persist the draft, and pause until explicit retry',async()=>{
   const h=harness();await h.context.run(()=>h.context.reorder(h.eval('tasks()[0]'),1));
   await h.context.run(()=>h.context.patch(h.eval("tasks().find(task=>task.id==='a')"),{title:'Keep me'}));
