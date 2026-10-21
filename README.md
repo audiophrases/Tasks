@@ -34,6 +34,8 @@ The ignored local `taskflow/` checkout and deployment archive predate the GitHub
 
 ## Background sync
 
+With Remember me enabled, Taskflow saves the last workspace and selected list for that connection. Return visits show those tasks immediately, then check Google in the background. Pending edits take precedence over the cache. Signed-out visitors and new Google connections cannot load the previous connection's cache; signing out removes it. A clean focused task accepts refreshed data while retaining focus and its caret; unfinished text stays intact.
+
 Creating, editing, completing, moving and deleting tasks updates the interface immediately. Google writes run in order in the background, including when you switch lists. Background reads cannot replace newer edits or interrupt the active task editor.
 
 The status shows syncing, synced, or pending changes. A failed write pauses the queue and offers **Retry sync** (or **Reconnect** for an expired login). Pending changes are saved in this browser when storage is available and are restored only after signing into the account with the matching Google list. Signing out is blocked while changes are pending. Keep the tab open until syncing completes; leaving with pending writes triggers a browser warning. If a connection drops during creation, check Google Tasks before confirming a retry, since Google may already have created the item.

@@ -3,7 +3,7 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const vm=require('node:vm');
 function harness(){
-  const listeners={};const context={token:'access',busy:false,list:'b',selected:null,showCompleted:false,data:{tasks:{},lists:[{id:'a',title:'First'},{id:'b',title:'Second'}]},esc:s=>s,render(){context.rendered=true;}};
+  const listeners={};const context={token:'access',busy:false,list:'b',selected:null,showCompleted:false,data:{tasks:{},lists:[{id:'a',title:'First'},{id:'b',title:'Second'}]},esc:s=>s,saveTaskCache(){},render(){context.rendered=true;}};
   const choices=['a','b'].map(id=>({dataset:{list:id},focus(){context.document.activeElement=this;},scrollIntoView(){}}));
   const dialog={open:false,querySelectorAll:()=>choices,showModal(){this.open=true;},close(){this.open=false;}};
   const first={focus(){context.focusedTask=true;}};

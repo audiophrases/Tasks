@@ -9,6 +9,8 @@ function harness(options={}) {
   const context={
     AbortSignal,document:{body:{classList:{add(){},remove(){}}}},$(){return {};},
     token:null,expires:0,busy:false,refreshTimer:null,
+    restoreTaskCache:()=>Boolean(options.cached),saveTaskCache(){},clearTaskCache(){},
+    focusTaskList(){context.focused=true;},backgroundRefresh:async()=>{loads++;},
     localStorage:{getItem:key=>store.get(key)||null,setItem:(key,value)=>store.set(key,value),removeItem:key=>store.delete(key)},
     fetch:async(url,request)=>{
       requests.push({url,request});
@@ -25,6 +27,15 @@ test('return visit restores lists using saved session, without a Google popup',a
   assert.equal(h.context.token,'new-access');assert.equal(h.loads,1);
   assert.match(h.requests[0].url,/\/session$/);
   assert.equal(h.context.busy,false);
+});
+
+test('a cached workspace becomes usable while Google refreshes in the background',async()=>{
+  const h=harness({cached:true});
+  let refreshing=false;
+  h.context.backgroundRefresh=()=>{refreshing=true;return new Promise(()=>{});};
+  await h.context.restoreGoogleSession();
+  assert.equal(h.context.busy,false);assert.equal(h.context.focused,true);
+  assert.equal(refreshing,true);assert.equal(h.loads,0);
 });
 test('concurrent task requests share one session renewal',async()=>{
   const h=harness();await Promise.all([h.context.ensureGoogleSession(),h.context.ensureGoogleSession()]);

@@ -19,6 +19,7 @@ function choosePickerList(id){
   list=id;selected=null;
   $('#listpicker').close();
   render();
+  saveTaskCache();
   const first=document.querySelector('.row .title');
   (first||$('#quick')).focus();
 }

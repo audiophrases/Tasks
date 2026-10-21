@@ -143,6 +143,66 @@ test('refresh leaves an active editor and its draft untouched',async()=>{
   assert.equal(h.context.document.activeElement.value,'Uncommitted draft');
 });
 
+test('saved tasks restore immediately for the same remembered connection, including the selected list',async()=>{
+  const h=harness();await tick();
+  h.storage.set('taskflow-browser-session-v1',JSON.stringify({accessToken:'remembered',expiresAt:Date.now()+3600000}));
+  h.eval("list='Other';saveTaskCache();data={lists:[],tasks:{}};list=null;token=null");
+  assert.equal(h.context.restoreTaskCache(),true);
+  assert.equal(h.eval('list'),'Other');assert.equal(h.eval('cacheVisible'),true);
+  assert.equal(h.eval('data.tasks.L[0].title'),'A');assert.equal(h.calls.length,0);
+  assert.equal(h.$('#quick').disabled,true);
+  h.eval("list='L';render()");assert.match(h.$('#tasks').innerHTML,/readonly/);
+});
+
+test('cached tasks cannot appear for another connection or a signed-out visitor',async()=>{
+  const h=harness();await tick();
+  const key='taskflow-browser-session-v1';
+  h.storage.set(key,JSON.stringify({accessToken:'remembered',expiresAt:Date.now()+3600000}));
+  h.context.saveTaskCache();
+  h.storage.set(key,JSON.stringify({accessToken:'other-account',expiresAt:Date.now()+3600000}));
+  assert.equal(h.context.restoreTaskCache(),false);
+  h.storage.delete(key);assert.equal(h.context.restoreTaskCache(),false);
+  h.context.clearTaskCache();assert.equal(h.storage.has('taskflow-task-cache-v1'),false);
+});
+
+test('cached temporary IDs retain aliases so subsequent edits address Google tasks',async()=>{
+  const h=harness();await tick();
+  h.storage.set('taskflow-browser-session-v1',JSON.stringify({accessToken:'remembered',expiresAt:Date.now()+3600000}));
+  await h.context.add('Created');const task=h.eval("tasks().find(item=>item.title==='Created')");
+  h.calls[0].resolve({id:'google-created'});await tick();
+  h.eval('syncAliases.clear();data={lists:[],tasks:{}};list=null');
+  assert.equal(h.context.restoreTaskCache(),true);
+  const restored=h.eval("tasks().find(item=>item.title==='Created')");
+  await h.context.patch(restored,{title:'After reloading'});
+  assert.match(h.calls[1].path,/google-created$/);assert.equal(restored.id,task.id);
+  h.calls[1].resolve({});await tick();
+});
+
+test('a restored outbox takes precedence over the cached snapshot and does not resend automatically',async()=>{
+  const h=harness();await tick();
+  h.storage.set('taskflow-browser-session-v1',JSON.stringify({accessToken:'remembered',expiresAt:Date.now()+3600000}));
+  await h.context.patch(h.eval('tasks()[0]'),{title:'Pending edit'});
+  h.calls[0].reject(Error('Offline'));await tick();
+  const fresh=harness(new Map(h.storage));await tick();
+  assert.equal(fresh.context.restoreTaskCache(),true);
+  assert.equal(fresh.eval('tasks()[0].title'),'Pending edit');
+  assert.equal(fresh.eval('syncPending()'),true);assert.equal(fresh.calls.length,0);
+});
+
+test('Google updates a clean focused cached title while preserving focus and caret',async()=>{
+  const h=harness();await tick();h.eval('cacheVisible=true');
+  const input={value:'A',selectionStart:1,selectionEnd:1,matches:()=>true,
+    closest:()=>({dataset:{id:'a'}})};
+  let focused=false,caret;
+  const refreshedInput={focus(){focused=true;},setSelectionRange(start,end){caret=[start,end];}};
+  h.context.document.activeElement=input;
+  h.context.document.querySelectorAll=()=>[{dataset:{id:'a'},querySelector:()=>refreshedInput}];
+  h.context.all=async path=>path==='/users/@me/lists'?[{id:'L',title:'Real list'}]:[{id:'a',title:'Updated in Google'}];
+  await h.context.reload();
+  assert.equal(h.eval('tasks()[0].title'),'Updated in Google');assert.equal(h.eval('cacheVisible'),false);
+  assert.equal(focused,true);assert.deepEqual(caret,[1,1]);
+});
+
 test('delete creates Deleted once, keeps the current list, and moves tasks without destructive requests',async()=>{
   const h=harness();await h.context.run(()=>h.context.deleteTask(h.eval('tasks()[0]')));
   assert.equal(h.eval('tasks().length'),1);assert.equal(h.eval('list'),'L');

@@ -1,13 +1,13 @@
 const $=s=>document.querySelector(s), uid=()=>crypto.randomUUID();
-let data={lists:[],tasks:{}},list=null,selected=null,showCompleted=false,token=null,expires=0,busy=false,drag=null,refreshTimer;
+let data={lists:[],tasks:{}},list=null,selected=null,showCompleted=false,token=null,expires=0,busy=false,drag=null,refreshTimer,cacheVisible=false;
 const tasks=()=>data.tasks[list]||[], base=()=>`/lists/${encodeURIComponent(list)}/tasks`, esc=s=>String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function notify(s){$('#toast').textContent=s;$('#toast').style.display='block';clearTimeout(notify.timer);notify.timer=setTimeout(()=>$('#toast').style.display='none',4500)}
 function ordered(){const t=tasks(),out=[];for(const p of t.filter(x=>!x.parent)){out.push(p);out.push(...t.filter(x=>x.parent===p.id))}out.push(...t.filter(x=>x.parent&&!t.some(p=>p.id===x.parent)));return out}
-function renderTaskRow(t,archiveChild=false){const deleteLabel=isDeletedList()?'Permanently delete task':'Move task to Deleted';return `<div class="row ${t.parent||archiveChild?'child':''} ${archiveChild?(t.parent?'archive-subtask':'archive-project'):''} ${selected===t.id?'selected':''} ${t.status==='completed'?'completed':''}" data-id="${esc(t.id)}"><span class="grip" draggable="true" title="Drag to reorder">⠿</span><button class="check ${t.status==='completed'?'done':''}" data-action="check" title="Complete / reopen (Alt + Enter)" aria-label="${t.status==='completed'?'Reopen':'Complete'} task">${t.status==='completed'?'✓':''}</button><textarea class="title" aria-label="Task title" rows="1" wrap="soft">${esc(t.title)}</textarea><div class="actions"><button data-action="copy" title="Copy task text (Ctrl/Cmd + C without a selection)" aria-label="Copy task text">⧉</button><button data-action="sub" title="Add subtask (Ctrl/Cmd + Enter)" aria-label="Add subtask">↳</button><button data-action="up" title="Move up (Alt + Up)" aria-label="Move up">↑</button><button data-action="down" title="Move down (Alt + Down)" aria-label="Move down">↓</button><button data-action="delete" title="${deleteLabel} (Ctrl/Cmd + Delete)" aria-label="${deleteLabel}">×</button></div></div>`;}
+function renderTaskRow(t,archiveChild=false){const deleteLabel=isDeletedList()?'Permanently delete task':'Move task to Deleted';return `<div class="row ${t.parent||archiveChild?'child':''} ${archiveChild?(t.parent?'archive-subtask':'archive-project'):''} ${selected===t.id?'selected':''} ${t.status==='completed'?'completed':''}" data-id="${esc(t.id)}"><span class="grip" draggable="true" title="Drag to reorder">⠿</span><button class="check ${t.status==='completed'?'done':''}" data-action="check" title="Complete / reopen (Alt + Enter)" aria-label="${t.status==='completed'?'Reopen':'Complete'} task">${t.status==='completed'?'✓':''}</button><textarea class="title" aria-label="Task title" ${!token&&cacheVisible?'readonly':''} rows="1" wrap="soft">${esc(t.title)}</textarea><div class="actions"><button data-action="copy" title="Copy task text (Ctrl/Cmd + C without a selection)" aria-label="Copy task text">⧉</button><button data-action="sub" title="Add subtask (Ctrl/Cmd + Enter)" aria-label="Add subtask">↳</button><button data-action="up" title="Move up (Alt + Up)" aria-label="Move up">↑</button><button data-action="down" title="Move down (Alt + Down)" aria-label="Move down">↓</button><button data-action="delete" title="${deleteLabel} (Ctrl/Cmd + Delete)" aria-label="${deleteLabel}">×</button></div></div>`;}
 function renderTaskGroups(items){
   return taskDisplayGroups(items,showCompleted).map((group,index)=>`<div class="task-group group-${index%7} ${group.archived?'archive-group':''}">${group.tasks.map(task=>renderTaskRow(task,group.archived&&task.id!==group.marker)).join('')}</div>`).join('');
 }
-function render(){if(!token&&!syncPending()){data={lists:[],tasks:{}};list=null;selected=null;}$('#quick').disabled=!token||!list;$('#newlist').disabled=!token;$('#connection').textContent=token?'Google Tasks connected':'Not signed in';$('#connect').innerHTML=token?'Google connection <span>✓</span>':'Connect Google Tasks <span>↗</span>';updateSyncStatus();$('#lists').innerHTML=data.lists.map(l=>`<button data-list="${esc(l.id)}" class="${l.id===list?'active':''}"><span>☷</span>${esc(l.title)}<span>${(data.tasks[l.id]||[]).filter(t=>t.status!=='completed').length}</span></button>`).join('');$('#listtitle').textContent=data.lists.find(l=>l.id===list)?.title||'Tasks';$('#count').textContent=tasks().filter(t=>t.status!=='completed').length;const visible=visibleTasks();$('#empty').hidden=!token||visible.length>0;$('#tasks').innerHTML=renderTaskGroups(tasks());$('#togglecompleted').textContent=showCompleted?'Hide completed':'Show completed';resizeTaskTitles();}
+function render(){if(!token&&!syncPending()&&!cacheVisible){data={lists:[],tasks:{}};list=null;selected=null;}$('#quick').disabled=!token||!list;$('#newlist').disabled=!token;$('#connection').textContent=token?'Google Tasks connected':'Not signed in';$('#connect').innerHTML=token?'Google connection <span>✓</span>':'Connect Google Tasks <span>↗</span>';updateSyncStatus();$('#lists').innerHTML=data.lists.map(l=>`<button data-list="${esc(l.id)}" class="${l.id===list?'active':''}"><span>☷</span>${esc(l.title)}<span>${(data.tasks[l.id]||[]).filter(t=>t.status!=='completed').length}</span></button>`).join('');$('#listtitle').textContent=data.lists.find(l=>l.id===list)?.title||'Tasks';$('#count').textContent=tasks().filter(t=>t.status!=='completed').length;const visible=visibleTasks();$('#empty').hidden=!token||visible.length>0;$('#tasks').innerHTML=renderTaskGroups(tasks());$('#togglecompleted').textContent=showCompleted?'Hide completed':'Show completed';resizeTaskTitles();}
 function focus(id){selected=id;render();const input=[...document.querySelectorAll('.row')].find(r=>r.dataset.id===id)?.querySelector('.title');input?.focus()}
 function focusTaskList(){
   if(!token||!list||$('#modal').open||$('#listpicker').open||document.activeElement?.matches('input,textarea,[contenteditable="true"]'))return;
@@ -20,22 +20,33 @@ async function all(path){let items=[],page;do{const j=await api(path+(path.inclu
 let backgroundRead=null;
 async function reload(){
   if(backgroundRead)return backgroundRead;
-  if(syncPending())return;
+  if(syncPending()){taskCacheRefreshing=false;updateSyncStatus();return;}
   const revision=syncRevision;
   const workspace=data;
   const read=(async()=>{
     const lists=await all('/users/@me/lists');
     const entries=await Promise.all(lists.map(async item=>[item.id,(await all(`/lists/${encodeURIComponent(item.id)}/tasks?showCompleted=true&showHidden=true`)).sort((a,b)=>(a.position||'').localeCompare(b.position||''))]));
     if(syncRevision!==revision||syncPending()||data!==workspace||!token)return;
-    // Keep the editor and its unsaved text intact during automatic refreshes.
-    if(document.activeElement?.matches('.title'))return;
+    // A clean focused title must not block updates to the cached workspace.
+    const active=document.activeElement,editing=active?.matches('.title');
+    const activeId=editing?active.closest?.('.row')?.dataset.id:null;
+    const activeTask=editing?tasks().find(item=>item.id===activeId):null;
+    if(editing&&(!activeTask||active.value!==activeTask.title))return;
+    const focusId=activeTask?remoteId(activeTask.id):null,start=active?.selectionStart,end=active?.selectionEnd;
     const next={lists,tasks:Object.fromEntries(entries)};
     data=restoreSyncDraft(next)||next;
     if(!data.lists.some(item=>item.id===list))list=data.lists[0]?.id;
+    cacheVisible=false;
     render();
+    saveTaskCache();
+    if(focusId){
+      const input=[...document.querySelectorAll('.row')].find(row=>row.dataset.id===focusId)?.querySelector('.title');
+      if(input){input.focus();input.setSelectionRange(start,end);}
+      else focusTaskList();
+    }
   })();
   backgroundRead=read;
-  try{await read;}finally{if(backgroundRead===read)backgroundRead=null;}
+  try{await read;}finally{if(backgroundRead===read)backgroundRead=null;taskCacheRefreshing=false;updateSyncStatus();}
 }
 async function backgroundRefresh(){
   try{await reload();}catch(error){updateSyncStatus();if(!token&&!syncPending()){render();void connection();}else notify('Could not refresh Google Tasks. Your edits are unchanged.');}
@@ -83,7 +94,7 @@ function modal(html){$('#modalbody').innerHTML=html;$('#modal').showModal()}
 function shortcuts(){modal('<span class="eyebrow">KEEP YOUR HANDS IN FLOW</span><h2>A shortcut to simple.</h2>'+[['Switch list','Alt + L'],['New task','N'],['Add next task','Enter'],['Add subtask','Ctrl / ⌘ + Enter'],['Indent / outdent','Tab / Shift + Tab'],['Reorder task','Alt + ↑ / ↓'],['Navigate tasks','↑ / ↓'],['Complete / reopen task','Alt + Enter'],['Also complete / reopen','Ctrl / ⌘ + Shift + Enter'],['Select a task range','Shift + click'],['Add / remove a selected task','Ctrl / ⌘ + click'],['Copy selected tasks / task text','Ctrl / ⌘ + C'],['Delete task / move to Deleted','Ctrl / ⌘ + Delete'],['Show shortcuts','?'],['Leave task / close dialog','Esc']].map(([a,b])=>`<div class="shortcut"><span>${a}</span><kbd>${b}</kbd></div>`).join('')+'<p>Task shortcuts work while editing a task. Tab and Shift + Tab change the task’s level from anywhere in its title. In Deleted, the delete action permanently removes the task and its subtasks without confirmation. On Mac, ⌘ + Backspace performs the same action. Press Esc to leave the title.</p>')}
 $('#connect').onclick=connection;$('#shortcuts').onclick=shortcuts;$('#help').onclick=shortcuts;$('#tipclose').onclick=()=>$('.tip').remove();$('#togglecompleted').onclick=()=>{showCompleted=!showCompleted;render()};$('#refresh').onclick=()=>syncFailure?retrySync():token?backgroundRefresh():connection();$('#retrysync').onclick=retrySync;
 $('#quick').onkeydown=e=>{if(e.key==='Enter'&&!e.isComposing&&list){e.preventDefault();const title=e.target.value;run(async()=>{await add(title,null,tasks().filter(t=>!t.parent&&!t.hidden&&!t.deleted).at(-1)?.id,{allowEmpty:true});$('#quick').value=''})}};
-$('#lists').onclick=e=>{const b=e.target.closest('[data-list]');if(b&&!busy){list=b.dataset.list;selected=null;render()}};
+$('#lists').onclick=e=>{const b=e.target.closest('[data-list]');if(b&&!busy){list=b.dataset.list;selected=null;render();saveTaskCache()}};
 $('#newlist').onclick=()=>{if(!token){void connection();return;}modal('<h2>A fresh list</h2><label for="listname">List name</label><input id="listname" placeholder="What’s on your mind?"><button id="createlist" class="primary">Create list</button>');$('#listname').focus();const create=()=>{const title=$('#listname').value.trim();if(!title)return;$('#modal').close();run(async()=>{createList(title)})};$('#createlist').onclick=create;$('#listname').onkeydown=e=>{if(e.key==='Enter')create()}};
 $('#tasks').addEventListener('focusin',e=>{const r=e.target.closest('.row');if(r){selected=r.dataset.id;document.querySelectorAll('.row').forEach(x=>x.classList.toggle('selected',x===r))}});
 $('#tasks').addEventListener('change',e=>{if(!e.target.matches('.title'))return;const t=tasks().find(t=>t.id===e.target.closest('.row').dataset.id);if(!t)return;const title=e.target.value.trim();if(title&&title!==t.title)run(()=>patch(t,{title}));else e.target.value=t.title});
@@ -91,5 +102,5 @@ $('#tasks').onclick=e=>{const b=e.target.closest('[data-action]'),r=e.target.clo
 $('#tasks').onkeydown=e=>{if(handleTaskShortcut(e))return;const r=e.target.closest('.row');if(!r||busy)return;const t=tasks().find(t=>t.id===r.dataset.id),mod=e.ctrlKey||e.metaKey;const isInput=e.target.matches('.title');if(e.key==='Tab'&&isInput&&!mod&&!e.altKey){e.preventDefault();run(async()=>{const title=e.target.value.trim();if(title&&title!==t.title)await patch(t,{title});await indent(t,e.shiftKey)})}else if(e.altKey&&['ArrowUp','ArrowDown'].includes(e.key)){e.preventDefault();run(async()=>{const title=isInput?e.target.value.trim():'';if(title&&title!==t.title)await patch(t,{title});await reorder(t,e.key==='ArrowUp'?-1:1)})}else if(e.key==='Enter'&&isInput){e.preventDefault();run(async()=>{const title=e.target.value.trim();if(title&&title!==t.title)await patch(t,{title});if(mod&&e.shiftKey)await patch(t,{status:t.status==='completed'?'needsAction':'completed'});else if(mod)await add('',t.parent||t.id,tasks().filter(x=>x.parent===(t.parent||t.id)&&!x.hidden&&!x.deleted).at(-1)?.id,{allowEmpty:true});else await add('',t.parent,t.id,{allowEmpty:true})})}else if(['ArrowUp','ArrowDown'].includes(e.key)&&!mod){e.preventDefault();const a=visibleTasks(),i=a.indexOf(t)+(e.key==='ArrowUp'?-1:1);if(a[i])focus(a[i].id)}else if(e.key==='Escape'){e.target.blur();$('#quick').focus()}};
 $('#tasks').ondragstart=e=>{const r=e.target.closest('.row');if(!r||busy)return;drag=r.dataset.id;e.dataTransfer.setData('text/plain',drag);e.dataTransfer.effectAllowed='move'};$('#tasks').ondragover=e=>{if(drag)e.preventDefault()};$('#tasks').ondrop=e=>{e.preventDefault();const r=e.target.closest('.row');if(!r||!drag)return;const t=tasks().find(x=>x.id===drag),target=tasks().find(x=>x.id===r.dataset.id);drag=null;if(t&&target&&t.id!==target.id)run(()=>move(t,target.parent,target.id))};$('#tasks').ondragend=()=>drag=null;
 document.addEventListener('keydown',e=>{if($('#modal').open||$('#listpicker').open||e.target.matches('input,textarea')||e.ctrlKey||e.metaKey||e.altKey)return;if(e.key==='?'){e.preventDefault();shortcuts()}if(e.key.toLowerCase()==='n'){e.preventDefault();$('#quick').focus()}});document.addEventListener('visibilitychange',()=>{if((token||savedGoogleSession())&&!busy&&document.visibilityState==='visible')void backgroundRefresh()});render();
-async function initialize(){await restoreGoogleSession();if(!token)await connection();else focusTaskList();}
+async function initialize(){await restoreGoogleSession();if(!token){if(!cacheVisible)await connection();}else focusTaskList();}
 void initialize();

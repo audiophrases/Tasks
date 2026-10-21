@@ -2,6 +2,45 @@
 let syncQueue=[],syncRunning=false,syncFailure=null,syncRevision=0,syncScope=null;
 const syncAliases=new Map();
 const syncPending=()=>syncQueue.length>0;
+const TASK_CACHE_KEY='taskflow-task-cache-v1';
+let taskCacheRefreshing=false;
+function taskCacheConnection(){
+  for(const key of ['taskflow-google-session-v1','taskflow-browser-session-v1']){
+    const value=JSON.parse(localStorage.getItem(key)||'null');
+    if(!value||!(value.expiresAt>Date.now()))continue;
+    if(key==='taskflow-google-session-v1'?!/^[A-Za-z0-9_-]{43}$/.test(value.handle):typeof value.accessToken!=='string'||!value.accessToken)continue;
+    return {key,value};
+  }
+  return null;
+}
+function saveTaskCache(){
+  if(!token||!data.lists.length)return;
+  try{
+    const connection=taskCacheConnection();
+    if(!connection)return;
+    const owner=connection.value.cacheOwner||crypto.randomUUID();
+    if(!connection.value.cacheOwner)localStorage.setItem(connection.key,JSON.stringify({...connection.value,cacheOwner:owner}));
+    localStorage.setItem(TASK_CACHE_KEY,JSON.stringify({owner,data,list,aliases:[...syncAliases]}));
+  }catch{ /* Caching is optional when browser storage is unavailable. */ }
+}
+function restoreTaskCache(){
+  try{
+    const connection=taskCacheConnection(),cached=JSON.parse(localStorage.getItem(TASK_CACHE_KEY)||'null');
+    if(!connection?.value.cacheOwner||cached?.owner!==connection.value.cacheOwner||!Array.isArray(cached.data?.lists)||!cached.data?.tasks)return false;
+    if(!cached.data.lists.every(item=>typeof item.id==='string'&&typeof item.title==='string'&&Array.isArray(cached.data.tasks[item.id])))return false;
+    syncAliases.clear();
+    for(const [id,value] of cached.aliases||[])syncAliases.set(id,value);
+    data=restoreSyncDraft(cached.data)||cached.data;
+    list=data.lists.some(item=>item.id===cached.list)?cached.list:data.lists[0]?.id;
+    cacheVisible=true;taskCacheRefreshing=true;
+    render();
+    return true;
+  }catch{return false;}
+}
+function clearTaskCache(){
+  cacheVisible=false;taskCacheRefreshing=false;
+  try{localStorage.removeItem(TASK_CACHE_KEY);}catch{}
+}
 function remoteId(id){
   const seen=new Set();
   while(syncAliases.has(id)&&!seen.has(id)){seen.add(id);id=syncAliases.get(id);}
@@ -9,7 +48,7 @@ function remoteId(id){
 }
 function updateSyncStatus(){
   const status=document.querySelector('#status'),retry=document.querySelector('#retrysync');
-  if(status)status.textContent=syncFailure?'Changes waiting to sync':syncPending()?'Syncing…':token?'Synced with Google Tasks':'Sign in to view your tasks';
+  if(status)status.textContent=syncFailure?'Changes waiting to sync':syncPending()?'Syncing…':taskCacheRefreshing?'Showing saved tasks · checking Google…':token?'Synced with Google Tasks':cacheVisible?'Showing saved tasks · reconnect to sync':'Sign in to view your tasks';
   if(retry){retry.hidden=!syncFailure;retry.textContent=token?'Retry sync':'Reconnect';}
 }
 function saveSyncDraft(){
@@ -19,6 +58,7 @@ function saveSyncDraft(){
     if(syncPending())localStorage.setItem(key,JSON.stringify({data,queue:syncQueue,aliases:[...syncAliases]}));
     else localStorage.removeItem(key);
   }catch{ /* The tab still retains the outbox; beforeunload protects outstanding changes. */ }
+  saveTaskCache();
 }
 function restoreSyncDraft(remote){
   if(syncPending())return null;

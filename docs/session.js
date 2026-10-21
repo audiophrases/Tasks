@@ -32,6 +32,7 @@ function rememberBrowserSession(enabled) {
     // Only with the user's Remember me choice, and only until Google's expiry.
     // This cache cannot renew or extend a Google access token.
     localStorage.setItem(BROWSER_SESSION_KEY, JSON.stringify({accessToken:token, expiresAt:expires}));
+    saveTaskCache();
   } catch { notify('This browser could not save your session. You can still use Tasks in this tab.'); }
 }
 
@@ -123,6 +124,7 @@ async function forgetGoogleSession() {
   sessionGeneration++;
   forgetBrowserSession();
   localStorage.removeItem(SESSION_KEY);
+  clearTaskCache();
   if(saved)await sessionRequest('/logout',{handle:saved.handle});
 }
 
@@ -130,15 +132,21 @@ async function restoreGoogleSession() {
   const saved = savedGoogleSession(), cached = rememberedBrowserSession();
   if ((!saved && !cached) || busy) return;
   if (!saved && cached) { token = cached.accessToken; expires = cached.expiresAt; }
+  const hasCache=restoreTaskCache();
   busy=true;
-  document.body.classList.add('busy');
-  $('#status').textContent='Restoring Google Tasks…';
+  if(!hasCache){document.body.classList.add('busy');$('#status').textContent='Restoring Google Tasks…';}
   try {
     await ensureGoogleSession();
-    await reload();
+    if(hasCache){
+      busy=false;
+      render();
+      focusTaskList();
+      void backgroundRefresh();
+    }else await reload();
     startGoogleRefresh();
   } catch(error) {
     token=null;expires=0;
+    taskCacheRefreshing=false;
     notify(error.message);
     render();
   } finally {
