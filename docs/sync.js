@@ -3,7 +3,7 @@ let syncQueue=[],syncRunning=false,syncFailure=null,syncRevision=0,syncScope=nul
 const syncAliases=new Map();
 const syncPending=()=>syncQueue.length>0;
 const TASK_CACHE_KEY='taskflow-task-cache-v1';
-let taskCacheRefreshing=false;
+let taskCacheRefreshing=false,taskCacheOwner=null;
 function taskCacheConnection(){
   for(const key of ['taskflow-google-session-v1','taskflow-browser-session-v1']){
     const value=JSON.parse(localStorage.getItem(key)||'null');
@@ -18,27 +18,29 @@ function saveTaskCache(){
   try{
     const connection=taskCacheConnection();
     if(!connection)return;
+    if(taskCacheOwner&&connection.value.cacheOwner!==taskCacheOwner)return;
     const owner=connection.value.cacheOwner||crypto.randomUUID();
     if(!connection.value.cacheOwner)localStorage.setItem(connection.key,JSON.stringify({...connection.value,cacheOwner:owner}));
     localStorage.setItem(TASK_CACHE_KEY,JSON.stringify({owner,data,list,aliases:[...syncAliases]}));
+    taskCacheOwner=owner;
   }catch{ /* Caching is optional when browser storage is unavailable. */ }
 }
 function restoreTaskCache(){
   try{
     const connection=taskCacheConnection(),cached=JSON.parse(localStorage.getItem(TASK_CACHE_KEY)||'null');
     if(!connection?.value.cacheOwner||cached?.owner!==connection.value.cacheOwner||!Array.isArray(cached.data?.lists)||!cached.data?.tasks)return false;
-    if(!cached.data.lists.every(item=>typeof item.id==='string'&&typeof item.title==='string'&&Array.isArray(cached.data.tasks[item.id])))return false;
+    if(!cached.data.lists.every(item=>typeof item.id==='string'&&typeof item.title==='string'&&Array.isArray(cached.data.tasks[item.id])&&cached.data.tasks[item.id].every(task=>task&&typeof task.id==='string'&&typeof task.title==='string')))return false;
     syncAliases.clear();
     for(const [id,value] of cached.aliases||[])syncAliases.set(id,value);
     data=restoreSyncDraft(cached.data)||cached.data;
     list=data.lists.some(item=>item.id===cached.list)?cached.list:data.lists[0]?.id;
-    cacheVisible=true;taskCacheRefreshing=true;
+    cacheVisible=true;taskCacheRefreshing=true;taskCacheOwner=cached.owner;
     render();
     return true;
   }catch{return false;}
 }
 function clearTaskCache(){
-  cacheVisible=false;taskCacheRefreshing=false;
+  cacheVisible=false;taskCacheRefreshing=false;taskCacheOwner=null;
   try{localStorage.removeItem(TASK_CACHE_KEY);}catch{}
 }
 function remoteId(id){

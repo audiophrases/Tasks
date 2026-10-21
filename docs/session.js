@@ -77,6 +77,7 @@ async function exchangeGoogleCode(code) {
   if(!/^[A-Za-z0-9_-]{43}$/.test(result.session)||!Number.isFinite(result.session_expires_at))throw Error('Could not save your connection. Please try again.');
   try {
     // Only our revocable session handle is stored, never Google access/refresh tokens.
+    clearTaskCache();
     localStorage.setItem(SESSION_KEY,JSON.stringify({handle:result.session,expiresAt:result.session_expires_at}));
   } catch {
     await sessionRequest('/logout',{handle:result.session}).catch(()=>{});

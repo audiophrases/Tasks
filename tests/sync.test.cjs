@@ -165,6 +165,17 @@ test('cached tasks cannot appear for another connection or a signed-out visitor'
   h.context.clearTaskCache();assert.equal(h.storage.has('taskflow-task-cache-v1'),false);
 });
 
+test('an older tab cannot overwrite another remembered connection\'s task cache',async()=>{
+  const h=harness();await tick();
+  const key='taskflow-browser-session-v1';
+  h.storage.set(key,JSON.stringify({accessToken:'remembered',expiresAt:Date.now()+3600000}));
+  h.context.saveTaskCache();
+  const cached=h.storage.get('taskflow-task-cache-v1');
+  h.storage.set(key,JSON.stringify({accessToken:'new-account',cacheOwner:'other-owner',expiresAt:Date.now()+3600000}));
+  h.context.saveTaskCache();
+  assert.equal(h.storage.get('taskflow-task-cache-v1'),cached);
+});
+
 test('cached temporary IDs retain aliases so subsequent edits address Google tasks',async()=>{
   const h=harness();await tick();
   h.storage.set('taskflow-browser-session-v1',JSON.stringify({accessToken:'remembered',expiresAt:Date.now()+3600000}));
