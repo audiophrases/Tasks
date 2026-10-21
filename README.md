@@ -38,6 +38,8 @@ With Remember me enabled, Taskflow saves the last workspace and selected list fo
 
 Creating, editing, completing, moving and deleting tasks updates the interface immediately. Google writes run in order in the background, including when you switch lists. Background reads cannot replace newer edits or interrupt the active task editor.
 
+Task and subtask titles autosave after a 700 ms typing pause, without leaving the field or moving the cursor. Each edit is saved to the local outbox immediately; rapid typing is combined into the latest pending title update. Leaving the title or hiding the tab sends pending title edits sooner. Clearing a title saves an empty title, and IME input waits for composition to finish.
+
 The status shows syncing, synced, or pending changes. A failed write pauses the queue and offers **Retry sync** (or **Reconnect** for an expired login). Pending changes are saved in this browser when storage is available and are restored only after signing into the account with the matching Google list. Signing out is blocked while changes are pending. Keep the tab open until syncing completes; leaving with pending writes triggers a browser warning. If a connection drops during creation, check Google Tasks before confirming a retry, since Google may already have created the item.
 
 ## Checks
