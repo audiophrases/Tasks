@@ -58,7 +58,10 @@ New tasks and subtasks start with an empty title when created with Enter, the su
 - Alt + Up / Down: reorder; subtasks move within their group and into the adjacent parent group at a boundary
 - Alt + Enter (or Ctrl/Cmd + Shift + Enter): complete / reopen the focused task
 - Ctrl/Cmd + Delete: move the focused task and its subtasks to Deleted; inside Deleted, permanently delete them without confirmation (Mac also supports Cmd + Backspace)
-- Ctrl/Cmd + C with no text highlighted: copy the whole focused task title; highlighted text copies normally
+- Shift + click: select the range of visible tasks and subtasks from the previous selection anchor
+- Ctrl/Cmd + click: add or remove individual tasks from the selection; Ctrl/Cmd + Shift + click adds a range
+- Ctrl/Cmd + C: copy selected task titles in displayed order, separated by newlines; without a task selection, copy the whole focused task title; highlighted text copies normally
+- Plain click or Esc: clear the multiple task selection
 - Each task also has a Copy text button
 - Alt + L: open list columns with task previews; Left/Right cycle lists, Up/Down scroll tasks, Enter opens the list, Esc cancels
 - N: focus new task field when not editing
