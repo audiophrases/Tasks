@@ -113,6 +113,7 @@ async function connection() {
           rememberBrowserSession(remember.checked && !usePersistence);
           $('#modal').close();
           render();
+          focusTaskList();
           notify(syncPending()?'Reconnected. Use Retry sync to send your pending changes.':'Google Tasks connected. Your lists are ready.');
           startGoogleRefresh();
         } catch (failure) {

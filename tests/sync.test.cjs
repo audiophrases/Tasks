@@ -68,7 +68,7 @@ test('new lists appear immediately and queued tasks use their eventual Google li
 
 test('Enter creates and syncs a focused blank sibling for tasks and subtasks',async()=>{
   for(const parent of [undefined,'a']){
-    const h=harness();
+    const h=harness();await tick();
     if(parent)h.eval("tasks()[1].parent='a'");
     let prevented=false;
     h.$('#tasks').onkeydown({key:'Enter',preventDefault(){prevented=true;},target:{
@@ -84,6 +84,20 @@ test('Enter creates and syncs a focused blank sibling for tasks and subtasks',as
     h.calls[0].resolve({id:'blank-task',title:''});await tick();
     assert.equal(h.eval('syncPending()'),false);
   }
+});
+
+test('Enter in the focused add field creates the first blank task in an empty list',async()=>{
+  const h=harness();await tick();h.eval('data.tasks.L=[];render();focusTaskList()');
+  const input=h.$('#quick');input.value='';
+  let prevented=false;
+  input.onkeydown({key:'Enter',target:input,preventDefault(){prevented=true;}});
+  await tick();
+  assert.equal(prevented,true);assert.equal(h.eval('tasks().length'),1);
+  assert.equal(h.eval('tasks()[0].title'),'');
+  assert.equal(h.eval('selected'),h.eval('tasks()[0].id'));
+  assert.equal(h.calls[0].body.title,'');
+  h.calls[0].resolve({id:'first-task',title:''});await tick();
+  assert.equal(h.eval('syncPending()'),false);
 });
 
 test('failures retain optimistic edits and dependent writes, persist the draft, and pause until explicit retry',async()=>{

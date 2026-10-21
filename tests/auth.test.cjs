@@ -9,14 +9,14 @@ function harness(options = {}) {
     if (!elements.has(selector)) elements.set(selector, {isConnected:true,textContent:'',disabled:false,insertAdjacentHTML(){},close(){this.closed=true;}});
     return elements.get(selector);
   };
-  let config, request, reads=0, fetches=0;
+  let config, request, reads=0, fetches=0, focused=0;
   const oauth2 = {
     initTokenClient(value){config=value;return {requestAccessToken(value){request=value;}};},
     initCodeClient(value){config=value;return {requestCode(){request={code:true};}};},
     hasGrantedAllScopes(){return options.granted !== false;},
   };
   const context = {
-    $, modal(){}, notify(){}, render(){},syncPending:()=>false,
+    $, modal(){}, notify(){}, render(){},focusTaskList(){focused++;},syncPending:()=>false,
     window:{google:{accounts:{oauth2}}},
     fetch:async () => {fetches++;return {ok:true,json:async()=>({loginEnabled:true,googleClientId:'pinplay.apps.googleusercontent.com'})};},
     AbortSignal, setTimeout,clearTimeout,setInterval(){return 1;},clearInterval(){},
@@ -32,7 +32,7 @@ function harness(options = {}) {
   };
   vm.createContext(context);
   vm.runInContext(fs.readFileSync('docs/auth.js','utf8'),context);
-  return {context,$,get config(){return config;},get request(){return request;},get reads(){return reads;},get fetches(){return fetches;}};
+  return {context,$,get config(){return config;},get request(){return request;},get reads(){return reads;},get fetches(){return fetches;},get focused(){return focused;}};
 }
 
 test('uses Pinplay client and personal account hint; OAuth starts only after click',async()=>{
@@ -55,6 +55,7 @@ test('successful authorization loads tasks and closes connection dialog',async()
   await h.config.callback({access_token:'approved',expires_in:3600});
   assert.equal(h.reads,1);assert.equal(h.context.token,'approved');
   assert.equal(h.$('#modal').closed,true);
+  assert.equal(h.focused,1);
 });
 test('failed initial Google read keeps dialog open and resets connection',async()=>{
   const h=harness({readFailure:true});await h.context.connection();
@@ -62,6 +63,7 @@ test('failed initial Google read keeps dialog open and resets connection',async(
   assert.equal(h.context.token,null);assert.equal(h.context.busy,false);
   assert.match(h.$('#autherror').textContent,/API is disabled/);
   assert.equal(h.$('#modal').closed,undefined);
+  assert.equal(h.focused,0);
 });
 test('closed popup permits retry without fetching tasks',async()=>{
   const h=harness();await h.context.connection();h.$('#authorize').onclick();

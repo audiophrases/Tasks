@@ -3,13 +3,13 @@ const assert=require('node:assert/strict');
 const vm=require('node:vm');
 const fs=require('node:fs');
 
-function harness(restore=false){
+function harness(restore=false,initialTasks=[]){
   const elements=new Map();let prompts=0;
-  const $=selector=>{if(!elements.has(selector))elements.set(selector,{style:{},listeners:{},addEventListener(name,fn){this.listeners[name]=fn;}});return elements.get(selector);};
-  const context={resizeTaskTitles(){},resizeTaskTitle(){},document:{querySelector:$,addEventListener(){}},crypto:{},
+  const $=selector=>{if(!elements.has(selector))elements.set(selector,{style:{},listeners:{},focus(){this.focused=true;},addEventListener(name,fn){this.listeners[name]=fn;}});return elements.get(selector);};
+  const context={resizeTaskTitles(){},resizeTaskTitle(){},document:{querySelector:$,querySelectorAll:()=>[],addEventListener(){}},crypto:{},initialTasks,
     localStorage:{getItem(){throw Error('Old demo storage must not be read');}},
     connection:async()=>{prompts++;},handleTaskShortcut(){},syncPending:()=>false,updateSyncStatus(){},syncRevision:0,restoreSyncDraft:()=>null,retrySync(){},
-    restoreGoogleSession:async()=>{if(restore)vm.runInContext("token='restored';data={lists:[{id:'google',title:'Real list'}],tasks:{google:[]}};list='google';render()",context);},
+    restoreGoogleSession:async()=>{if(restore)vm.runInContext("token='restored';data={lists:[{id:'google',title:'Real list'}],tasks:{google:initialTasks}};list='google';render()",context);},
   };
   vm.createContext(context);
   vm.runInContext(fs.readFileSync('docs/task-view.js','utf8'),context);vm.runInContext(fs.readFileSync('docs/app.js','utf8'),context);
@@ -30,8 +30,27 @@ test('restored Google session skips login and enables the real workspace',async(
   const h=harness(true);await new Promise(resolve=>setImmediate(resolve));
   assert.equal(h.prompts,0);assert.match(h.$('#lists').innerHTML,/Real list/);
   assert.equal(h.$('#quick').disabled,false);
+  assert.equal(h.$('#quick').focused,true);
   vm.runInContext('token=null;render()',h.context);
   assert.equal(h.$('#lists').innerHTML,'');assert.equal(h.$('#tasks').innerHTML,'');
+});
+
+test('page load selects the first visible task after restoring Google',async()=>{
+  const h=harness(true,[{id:'done',title:'Done',status:'completed'},
+    {id:'cleared',title:'Cleared',hidden:true},{id:'first',title:'First visible'},{id:'next',title:'Next'}]);
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(vm.runInContext('selected',h.context),'first');
+});
+
+test('startup focus does not interrupt open dialogs or an active editor',async()=>{
+  for(const selector of ['#modal','#listpicker','editor']){
+    const h=harness(true,[{id:'first',title:'First'}]);
+    if(selector==='editor')h.context.document.activeElement={matches:()=>true};
+    else h.$(selector).open=true;
+    await new Promise(resolve=>setImmediate(resolve));
+    assert.equal(vm.runInContext('selected',h.context),null);
+    assert.equal(h.$('#quick').focused,undefined);
+  }
 });
 
 test('parent frames wrap their children and neighboring groups use distinct colors',()=>{
