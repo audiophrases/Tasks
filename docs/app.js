@@ -63,7 +63,7 @@ async function run(fn){
   }catch(error){notify(error.message);}
   finally{busy=false;}
 }
-async function patch(task,changes,options){Object.assign(task,changes);enqueueSync({kind:'patch',listId:list,id:task.id,changes:{...changes}},options);}
+async function patch(task,changes,options){recordPatchUndo(task,changes);Object.assign(task,changes);enqueueSync({kind:'patch',listId:list,id:task.id,changes:{...changes}},options);}
 function saveTaskTitle(event){
   if(event.isComposing||!token||!event.target.matches('.title'))return;
   const task=tasks().find(item=>item.id===event.target.closest('.row')?.dataset.id);
@@ -83,10 +83,12 @@ function deleteTask(task){
   if(isDeletedList(listId)){
     data.tasks[listId]=tasks().filter(item=>item.id!==task.id&&item.parent!==task.id);
     selected=null;
+    recordUndo({kind:'permanentDelete'});
     enqueueSync({kind:'permanentDelete',listId,id:task.id});
     notify('Permanently deleted');return;
   }
   const destination=data.lists.find(item=>item.title.trim().toLowerCase()==='deleted')||createList('Deleted',{select:false});
+  recordUndo({kind:'delete',listId,id:task.id,deletedListId:destination.id,parent:task.parent,previous:taskAnchor(task)});
   const family=tasks().filter(item=>item.id===task.id||item.parent===task.id);
   data.tasks[listId]=tasks().filter(item=>item.id!==task.id&&item.parent!==task.id);
   delete task.parent;
@@ -96,7 +98,7 @@ function deleteTask(task){
   notify('Moved to Deleted');
 }
 function modal(html){$('#modalbody').innerHTML=html;$('#modal').showModal()}
-function shortcuts(){modal('<span class="eyebrow">KEEP YOUR HANDS IN FLOW</span><h2>A shortcut to simple.</h2>'+[['Switch list','Alt + L'],['New task','N'],['Add next task','Enter'],['Add subtask','Ctrl / ⌘ + Enter'],['Indent / outdent','Tab / Shift + Tab'],['Reorder task','Alt + ↑ / ↓'],['Navigate tasks','↑ / ↓'],['Complete / reopen task','Alt + Enter'],['Also complete / reopen','Ctrl / ⌘ + Shift + Enter'],['Select a task range','Shift + click'],['Add / remove a selected task','Ctrl / ⌘ + click'],['Copy selected tasks / task text','Ctrl / ⌘ + C'],['Delete task / move to Deleted','Ctrl / ⌘ + Delete'],['Show shortcuts','?'],['Leave task / close dialog','Esc']].map(([a,b])=>`<div class="shortcut"><span>${a}</span><kbd>${b}</kbd></div>`).join('')+'<p>Task shortcuts work while editing a task. Tab and Shift + Tab change the task’s level from anywhere in its title. In Deleted, the delete action permanently removes the task and its subtasks without confirmation. On Mac, ⌘ + Backspace performs the same action. Press Esc to leave the title.</p>')}
+function shortcuts(){modal('<span class="eyebrow">KEEP YOUR HANDS IN FLOW</span><h2>A shortcut to simple.</h2>'+[['Switch list','Alt + L'],['New task','N'],['Add next task','Enter'],['Add subtask','Ctrl / ⌘ + Enter'],['Indent / outdent','Tab / Shift + Tab'],['Reorder task','Alt + ↑ / ↓'],['Navigate tasks','↑ / ↓'],['Complete / reopen task','Alt + Enter'],['Also complete / reopen','Ctrl / ⌘ + Shift + Enter'],['Select a task range','Shift + click'],['Add / remove a selected task','Ctrl / ⌘ + click'],['Copy selected tasks / task text','Ctrl / ⌘ + C'],['Delete task / move to Deleted','Ctrl / ⌘ + Delete'],['Undo last action','Ctrl / ⌘ + Z'],['Show shortcuts','?'],['Leave task / close dialog','Esc']].map(([a,b])=>`<div class="shortcut"><span>${a}</span><kbd>${b}</kbd></div>`).join('')+'<p>Task shortcuts work while editing a task. Tab and Shift + Tab change the task’s level from anywhere in its title. In Deleted, the delete action permanently removes the task and its subtasks without confirmation. On Mac, ⌘ + Backspace performs the same action. Undo reverses typing in the field you are editing first, then earlier task changes; permanent deletes can’t be undone. Press Esc to leave the title.</p>')}
 $('#connect').onclick=connection;$('#shortcuts').onclick=shortcuts;$('#help').onclick=shortcuts;$('#tipclose').onclick=()=>$('.tip').remove();$('#togglecompleted').onclick=()=>{showCompleted=!showCompleted;render()};$('#refresh').onclick=()=>syncFailure?retrySync():token?backgroundRefresh():connection();$('#retrysync').onclick=retrySync;
 $('#quick').onkeydown=e=>{if(e.key==='Enter'&&!e.isComposing&&list){e.preventDefault();const title=e.target.value;run(async()=>{await add(title,null,tasks().filter(t=>!t.parent&&!t.hidden&&!t.deleted).at(-1)?.id,{allowEmpty:true});$('#quick').value=''})}};
 $('#lists').onclick=e=>{const b=e.target.closest('[data-list]');if(b&&!busy){list=b.dataset.list;selected=null;render();saveTaskCache()}};

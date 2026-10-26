@@ -15,6 +15,12 @@ function previousAnchor(parent, requestedId, movingId) {
   return siblings.slice(0, index + 1).reverse().find(task => !task.hidden && task.id !== movingId)?.id;
 }
 
+// The anchor that would put a task back where it is now.
+function taskAnchor(task) {
+  const siblings = siblingTasks(task.parent);
+  return siblings.slice(0, siblings.indexOf(task)).reverse().find(item => !item.hidden)?.id;
+}
+
 function validateParent(parent) {
   if (!parent) return;
   const task = tasks().find(task => task.id === parent && !task.deleted && !task.hidden);
@@ -39,6 +45,7 @@ async function add(title, parent, previous, {allowEmpty = false} = {}) {
   const listId=list;
   const items = tasks();
   items.splice(taskInsertionIndex(parent, previous), 0, task);
+  recordUndo({kind:'add',listId,id:task.id});
   if(token)enqueueSync({kind:'create',listId,id:task.id,title:task.title,parent,previous});
   focus(task.id);
 }
@@ -51,7 +58,11 @@ async function move(task, parent, previous) {
     throw Error('Move this task’s subtasks out first.');
   }
   previous = previousAnchor(parent, previous, task.id);
-  const listId=list;
+  const listId=list, anchor = taskAnchor(task);
+  // Dropping a task where it already is has nothing to undo.
+  if ((task.parent || '') !== (parent || '') || anchor !== previous) {
+    recordUndo({kind:'move',listId,id:task.id,parent:task.parent,previous:anchor});
+  }
   const items = tasks();
   items.splice(items.indexOf(task), 1);
   if (parent) task.parent = parent;

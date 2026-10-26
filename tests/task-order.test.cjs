@@ -7,7 +7,7 @@ function harness(items, options = {}) {
   const calls = [];
   const context = {
     tasks:()=>items,token:options.connected !== false,showCompleted:false,
-    list:'list',uid:()=> 'new',URLSearchParams,base:()=>'/lists/list/tasks',focus(){},
+    list:'list',uid:()=> 'new',URLSearchParams,base:()=>'/lists/list/tasks',focus(){},recordUndo(){},
     enqueueSync(op){
       const query=new URLSearchParams();
       if(op.parent)query.set('parent',op.parent);

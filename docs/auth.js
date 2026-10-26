@@ -53,6 +53,7 @@ async function signOut() {
   data = {lists:[],tasks:{}};
   list = null;
   selected = null;
+  clearUndoHistory();
   $('#modal').close();
   render();
   await connection();
