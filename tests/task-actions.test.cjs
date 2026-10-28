@@ -107,45 +107,44 @@ test('the same shortcut removes tasks in Deleted without saving an unnecessary t
 const done=(id,completed,parent)=>({id,title:id,status:'completed',completed,...(parent?{parent}:{})});
 const reopenKey={key:'Enter',ctrlKey:false,altKey:true,shiftKey:true};
 
-test('Alt+Shift+Enter reopens the last completed subtask of the focused task, one per press',async()=>{
-  const h=harness({items:[done('s1','2026-10-28T10:00:00.000Z','a'),done('s2','2026-10-28T11:00:00.000Z','a'),
-    done('other','2026-10-28T12:00:00.000Z','x')]});
-  assert.equal(h.context.handleTaskShortcut(h.event(reopenKey)),true);await h.work;
-  assert.equal(h.prevented,true);
-  assert.deepEqual(h.context.tasks().filter(t=>t.status==='needsAction').map(t=>t.id),['a','s2']);
-  h.context.handleTaskShortcut(h.event(reopenKey));await h.work;
-  assert.deepEqual(h.context.tasks().filter(t=>t.status==='needsAction').map(t=>t.id),['a','s1','s2']);
-  assert.equal(h.context.tasks().find(t=>t.id==='other').status,'completed');
-  assert.deepEqual(h.focused,[]);
+test('Alt+Shift+Enter reopens only the focused completed task or subtask and saves its edited title',async()=>{
+  for(const parent of [undefined,'p']){
+    const h=harness({items:[done('child','2026-10-28T10:00:00.000Z','a'),
+      done('sibling','2026-10-28T11:00:00.000Z','p'),done('p','2026-10-28T12:00:00.000Z')]});
+    Object.assign(h.task,done('a','2026-10-28T09:00:00.000Z',parent));
+    assert.equal(h.context.handleTaskShortcut(h.event(reopenKey)),true);await h.work;
+    assert.equal(h.prevented,true);assert.equal(h.task.title,h.input.value);
+    assert.deepEqual(h.context.tasks().map(t=>t.status),['needsAction','completed','completed','completed']);
+    assert.equal(h.patches.length,1);assert.deepEqual(h.focused,[]);
+    assert.equal(h.messages[0],parent?'Subtask reopened':'Task reopened');
+    // Another press must not complete this row or reopen another completed item.
+    h.context.handleTaskShortcut(h.event(reopenKey));await h.work;
+    assert.equal(h.task.status,'needsAction');assert.equal(h.patches.length,1);
+  }
 });
 
-test('from a subtask the shortcut targets its parent task\'s subtasks',async()=>{
-  const h=harness({items:[{id:'sub',title:'Open sub',status:'needsAction',parent:'a'},
-    done('s1','2026-10-28T10:00:00.000Z','a')]});
-  h.context.handleTaskShortcut({...h.event(reopenKey),target:{closest(){return {dataset:{id:'sub'},querySelector(){return h.input;}};}}});
-  await h.work;assert.equal(h.context.tasks().find(t=>t.id==='s1').status,'needsAction');
+test('reopen on an unfinished task or subtask consumes Enter without changing any task',async()=>{
+  for(const parent of [undefined,'p']){
+    const h=harness({items:[done('child','2026-10-28T10:00:00.000Z','a'),
+      done('sibling','2026-10-28T11:00:00.000Z','p')]});
+    if(parent)h.task.parent=parent;
+    assert.equal(h.context.handleTaskShortcut(h.event(reopenKey)),true);await h.work;
+    assert.equal(h.prevented,true);assert.equal(h.patches.length,0);
+    assert.deepEqual(h.context.tasks().map(t=>t.status),['needsAction','completed','completed']);
+  }
 });
 
-test('with no completed subtask in the focused task it says so and changes nothing',async()=>{
-  const h=harness({items:[done('elsewhere','2026-10-28T10:00:00.000Z')]});
-  h.context.handleTaskShortcut(h.event(reopenKey));await h.work;
-  assert.equal(h.patches.length,0);assert.match(h.messages[0],/No completed subtasks/);
+test('reopen outside any task leaves completed tasks alone',()=>{
+  const h=harness({items:[done('other','2026-10-28T10:00:00.000Z')]});
+  assert.equal(h.context.handleTaskShortcut(h.event({...reopenKey,target:{closest:()=>null}})),false);
+  assert.equal(h.patches.length,0);assert.equal(h.prevented,false);assert.deepEqual(h.focused,[]);
 });
 
-test('outside any task the latest completed task or subtask is reopened and focused',async()=>{
-  const h=harness({items:[done('old','2026-10-28T09:00:00.000Z'),done('new','2026-10-28T10:00:00.000Z','old')]});
-  await h.context.reopenLastCompleted(null);
-  assert.equal(h.context.tasks().find(t=>t.id==='new').status,'needsAction');
-  assert.equal(h.context.tasks().find(t=>t.id==='old').status,'completed');
-  assert.deepEqual(h.focused,['new']);
-});
-
-test('reopen ignores cleared tasks, held keys and busy operations',async()=>{
-  const h=harness({items:[{...done('gone','2026-10-28T10:00:00.000Z','a'),hidden:true}]});
-  await h.context.reopenLastCompleted(h.task);assert.equal(h.patches.length,0);
-  for(const options of [{repeat:true},{busy:true}]){
-    const g=harness({busy:options.busy,items:[done('s','2026-10-28T10:00:00.000Z','a')]});
-    g.context.handleTaskShortcut(g.event({...reopenKey,...(options.repeat?options:{})}));
-    assert.equal(g.patches.length,0);
+test('reopen ignores cleared or deleted tasks, held keys, composition and busy operations',()=>{
+  for(const options of [{hidden:true},{deleted:true},{repeat:true},{isComposing:true},{busy:true}]){
+    const h=harness({busy:options.busy});
+    Object.assign(h.task,{status:'completed',hidden:options.hidden,deleted:options.deleted});
+    h.context.handleTaskShortcut(h.event({...reopenKey,repeat:options.repeat,isComposing:options.isComposing}));
+    assert.equal(h.patches.length,0);assert.equal(h.task.status,'completed');
   }
 });

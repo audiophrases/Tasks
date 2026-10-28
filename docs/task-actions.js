@@ -16,28 +16,6 @@ function hasSelectedText(target) {
   return Boolean(window.getSelection()?.toString());
 }
 
-// With a scope (a parent task id) only that task's subtasks are considered.
-function lastCompletedTask(scope) {
-  let last;
-  for (const task of ordered()) {
-    if (task.status !== 'completed' || task.deleted || task.hidden || (scope && task.parent !== scope)) continue;
-    if (!last || (task.completed || '') >= (last.completed || '')) last = task;
-  }
-  return last;
-}
-
-async function reopenLastCompleted(focused) {
-  const task = lastCompletedTask(focused && (focused.parent || focused.id));
-  if (!task) {
-    notify(focused ? 'No completed subtasks to reopen here' : 'No completed tasks to reopen');
-    return;
-  }
-  await patch(task, {status: 'needsAction'});
-  notify(task.parent ? 'Subtask reopened' : 'Task reopened');
-  // Keep the caret where it is when working inside a task.
-  if (!focused) focus(task.id);
-}
-
 function handleTaskShortcut(event) {
   const row = event.target.closest('.row');
   if (!row || event.isComposing) return false;
@@ -70,25 +48,22 @@ function handleTaskShortcut(event) {
     void copyTaskText(row, task);
     return true;
   }
-  if (event.key === 'Enter' && event.altKey && event.shiftKey && !modifier) {
-    event.preventDefault();
-    if (busy || event.repeat) return true;
-    void run(() => reopenLastCompleted(task));
-    return true;
-  }
+  const reopen = event.key === 'Enter' && event.altKey && event.shiftKey && !modifier;
   const done = event.key === 'Enter' && (
     (event.altKey && !modifier && !event.shiftKey) ||
     (modifier && event.shiftKey && !event.altKey)
   );
-  if (!done) return false;
+  if (!done && !reopen) return false;
   event.preventDefault();
   if (busy || event.repeat) return true;
+  if (reopen && (task.status !== 'completed' || task.deleted || task.hidden)) return true;
   const title = taskText(row, task).trim();
   void run(async () => {
     await patch(task, {
       ...(title && title !== task.title ? {title} : {}),
       status: task.status === 'completed' ? 'needsAction' : 'completed',
     });
+    if (reopen) notify(task.parent ? 'Subtask reopened' : 'Task reopened');
     const visible = visibleTasks();
     if (!visible.includes(task)) {
       const index = ordered().indexOf(task);

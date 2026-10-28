@@ -5,22 +5,22 @@ const vm=require('node:vm');
 const tick=()=>new Promise(resolve=>setImmediate(resolve));
 function deferred(){let resolve,reject;const promise=new Promise((a,b)=>{resolve=a;reject=b;});return {promise,resolve,reject};}
 function harness(storage=new Map()){
-  const elements=new Map(),messages=[],events={},calls=[],timers=new Map();let serial=0,timerId=0,now=Date.now();
+  const elements=new Map(),messages=[],events={},calls=[],timers=new Map(),keydown=[];let serial=0,timerId=0,now=Date.now();
   class TestDate extends Date{static now(){return now;}}
   const $=selector=>{if(!elements.has(selector))elements.set(selector,{style:{},listeners:{},addEventListener(name,fn){this.listeners[name]=fn;},focus(){},setSelectionRange(){}});return elements.get(selector);};
   const context={resizeTaskTitles(){},resizeTaskTitle(){},URLSearchParams,console,crypto:{randomUUID:()=>String(++serial)},
     localStorage:{getItem:key=>storage.get(key)||null,setItem:(key,value)=>storage.set(key,value),removeItem:key=>storage.delete(key)},
     window:{addEventListener:(name,fn)=>events[name]=fn},
-    document:{querySelector:$,querySelectorAll:()=>[],addEventListener(){},body:{classList:{add(){throw Error('Foreground must not disable the board');},remove(){}}}},
-    connection:async()=>{},restoreGoogleSession:async()=>{},handleTaskShortcut(){},
+    document:{querySelector:$,querySelectorAll:()=>[],addEventListener(name,fn){if(name==='keydown')keydown.push(fn);},body:{classList:{add(){throw Error('Foreground must not disable the board');},remove(){}}}},
+    connection:async()=>{},restoreGoogleSession:async()=>{},
     Date:TestDate,setTimeout(fn,delay){const id=++timerId;timers.set(id,{fn,at:now+delay});return id;},clearTimeout:id=>timers.delete(id),confirm:()=>true,
   };
   vm.createContext(context);
-  for(const name of ['sync','task-view','task-order','app','undo'])vm.runInContext(fs.readFileSync('docs/'+name+'.js','utf8'),context);
+  for(const name of ['sync','task-view','task-actions','task-order','app','undo'])vm.runInContext(fs.readFileSync('docs/'+name+'.js','utf8'),context);
   context.notify=message=>messages.push(message);
   context.api=async(path,method,body)=>{const request=deferred();calls.push({path,method,body,...request});return request.promise;};
   vm.runInContext("token='access';data={lists:[{id:'L',title:'Real list'},{id:'Other',title:'Other list'}],tasks:{L:[{id:'a',title:'A',status:'needsAction'},{id:'b',title:'B',status:'needsAction'}],Other:[]}};list='L';data=restoreSyncDraft(data)||data;render()",context);
-  return {context,calls,messages,storage,events,$,eval:source=>vm.runInContext(source,context),
+  return {context,calls,messages,storage,events,keydown,$,eval:source=>vm.runInContext(source,context),
     async advance(ms){now+=ms;for(const [id,timer] of timers)if(timer.at<=now){timers.delete(id);timer.fn();}await tick();},
     input(id,value,extra={}){
       const target={value,selectionStart:value.length,selectionEnd:value.length,matches:()=>true,closest:()=>({dataset:{id}})};
@@ -165,6 +165,44 @@ test('Enter in the focused add field creates the first blank task in an empty li
   assert.equal(h.calls[0].body.title,'');
   h.calls[0].resolve({id:'first-task',title:''});await tick();
   assert.equal(h.eval('syncPending()'),false);
+});
+
+test('Alt+Shift+Enter syncs only the focused completed row and preserves its title and caret',async()=>{
+  for(const parent of [undefined,'a']){
+    const h=harness();await tick();
+    h.eval("showCompleted=true;tasks()[1].status='completed';tasks()[1].completed='2026-10-28T09:00:00.000Z';tasks().push({id:'newer',title:'Newer completed task',status:'completed',completed:'2026-10-28T10:00:00.000Z',parent:'a'});selected='b';render()");
+    if(parent)h.eval("tasks()[1].parent='a'");
+    const row={dataset:{id:'b'},querySelector:()=>input};
+    const input={value:'Edited completed title',selectionStart:3,selectionEnd:8,
+      matches:selector=>selector==='.title',closest:()=>row,
+      focus(){h.context.document.activeElement=this;},setSelectionRange(start,end){this.selectionStart=start;this.selectionEnd=end;}};
+    h.context.document.activeElement=input;
+    h.context.document.querySelectorAll=()=>[row];
+    const event={key:'Enter',altKey:true,shiftKey:true,target:input,preventDefault(){this.defaultPrevented=true;}};
+    h.$('#tasks').onkeydown(event);
+    for(const listener of h.keydown)listener(event);
+    await tick();
+    assert.equal(event.defaultPrevented,true);assert.equal(h.calls.length,1);
+    assert.match(h.calls[0].path,/\/tasks\/b$/);
+    assert.deepEqual({...h.calls[0].body},{title:input.value,status:'needsAction'});
+    assert.equal(h.eval('tasks()[1].completed'),undefined);assert.equal(h.eval('tasks()[2].status'),'completed');
+    assert.equal(h.context.document.activeElement,input);assert.equal(h.eval('selected'),'b');
+    assert.deepEqual([input.selectionStart,input.selectionEnd],[3,8]);
+    h.calls[0].resolve({});await tick();assert.equal(h.eval('syncPending()'),false);
+  }
+});
+
+test('Alt+Shift+Enter outside a task neither creates a task nor reopens another one',async()=>{
+  const h=harness();await tick();h.eval("tasks()[1].status='completed'");
+  const input=h.$('#quick');Object.assign(input,{value:'Draft task',matches:()=>true,closest:()=>null});
+  const event={key:'Enter',altKey:true,shiftKey:true,target:input,preventDefault(){this.defaultPrevented=true;}};
+  input.onkeydown(event);
+  for(const listener of h.keydown)listener(event);
+  await tick();
+  assert.equal(h.calls.length,0);assert.equal(h.eval('tasks().length'),2);
+  assert.equal(h.eval('tasks()[1].status'),'completed');assert.equal(input.value,'Draft task');
+  for(const listener of h.keydown)listener({...event,target:{matches:()=>false,closest:()=>null}});
+  await tick();assert.equal(h.calls.length,0);
 });
 
 test('failures retain optimistic edits and dependent writes, persist the draft, and pause until explicit retry',async()=>{
