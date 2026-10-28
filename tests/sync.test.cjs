@@ -167,42 +167,43 @@ test('Enter in the focused add field creates the first blank task in an empty li
   assert.equal(h.eval('syncPending()'),false);
 });
 
-test('Alt+Shift+Enter syncs only the focused completed row and preserves its title and caret',async()=>{
+test('reopening hidden completions syncs the current group newest first and preserves the active draft and caret',async()=>{
   for(const parent of [undefined,'a']){
     const h=harness();await tick();
-    h.eval("showCompleted=true;tasks()[1].status='completed';tasks()[1].completed='2026-10-28T09:00:00.000Z';tasks().push({id:'newer',title:'Newer completed task',status:'completed',completed:'2026-10-28T10:00:00.000Z',parent:'a'});selected='b';render()");
+    h.eval("tasks().push({id:'older',title:'Older completed item',status:'completed',completed:'2026-10-28T09:00:00Z',parent:'"+(parent||'b')+"'},{id:'newer',title:'Newer completed item',status:'completed',completed:'2026-10-28T10:00:00Z',hidden:true,parent:'"+(parent||'b')+"'},{id:'foreign',title:'Another group',status:'completed',completed:'2026-10-28T11:00:00Z',parent:'other'});selected='b';render()");
     if(parent)h.eval("tasks()[1].parent='a'");
     const row={dataset:{id:'b'},querySelector:()=>input};
-    const input={value:'Edited completed title',selectionStart:3,selectionEnd:8,
+    const input={value:'Edited focused title',selectionStart:3,selectionEnd:8,
       matches:selector=>selector==='.title',closest:()=>row,
       focus(){h.context.document.activeElement=this;},setSelectionRange(start,end){this.selectionStart=start;this.selectionEnd=end;}};
-    h.context.document.activeElement=input;
-    h.context.document.querySelectorAll=()=>[row];
-    const event={key:'Enter',altKey:true,shiftKey:true,target:input,preventDefault(){this.defaultPrevented=true;}};
-    h.$('#tasks').onkeydown(event);
-    for(const listener of h.keydown)listener(event);
-    await tick();
-    assert.equal(event.defaultPrevented,true);assert.equal(h.calls.length,1);
-    assert.match(h.calls[0].path,/\/tasks\/b$/);
-    assert.deepEqual({...h.calls[0].body},{title:input.value,status:'needsAction'});
-    assert.equal(h.eval('tasks()[1].completed'),undefined);assert.equal(h.eval('tasks()[2].status'),'completed');
-    assert.equal(h.context.document.activeElement,input);assert.equal(h.eval('selected'),'b');
-    assert.deepEqual([input.selectionStart,input.selectionEnd],[3,8]);
-    h.calls[0].resolve({});await tick();assert.equal(h.eval('syncPending()'),false);
+    h.context.document.activeElement=input;h.context.document.querySelectorAll=()=>[row];
+    assert.equal(h.eval("visibleTasks().some(t=>t.id==='newer')"),false);
+    for(const [index,id] of ['newer','older'].entries()){
+      const event={key:'Enter',altKey:true,shiftKey:true,target:input,preventDefault(){this.defaultPrevented=true;}};
+      h.$('#tasks').onkeydown(event);for(const listener of h.keydown)listener(event);await tick();
+      assert.equal(event.defaultPrevented,true);assert.equal(h.calls.length,index+1);
+      assert.ok(h.calls[index].path.endsWith('/tasks/'+id));
+      assert.deepEqual({...h.calls[index].body},{status:'needsAction'});
+      assert.equal(h.eval("visibleTasks().some(t=>t.id==='"+id+"')"),true);
+      assert.equal(h.eval('showCompleted'),false);assert.equal(h.eval('tasks()[4].status'),'completed');
+      assert.equal(h.context.document.activeElement,input);assert.equal(h.eval('selected'),'b');
+      assert.equal(input.value,'Edited focused title');assert.deepEqual([input.selectionStart,input.selectionEnd],[3,8]);
+      h.calls[index].resolve({});await tick();assert.equal(h.eval('syncPending()'),false);
+    }
+    assert.equal(h.eval('tasks()[3].hidden'),false);
   }
 });
 
-test('Alt+Shift+Enter outside a task neither creates a task nor reopens another one',async()=>{
-  const h=harness();await tick();h.eval("tasks()[1].status='completed'");
+test('outside a task the shortcut restores the latest completion without adding a task or changing the add draft',async()=>{
+  const h=harness();await tick();h.eval("tasks()[1].status='completed';tasks()[1].hidden=true");
   const input=h.$('#quick');Object.assign(input,{value:'Draft task',matches:()=>true,closest:()=>null});
   const event={key:'Enter',altKey:true,shiftKey:true,target:input,preventDefault(){this.defaultPrevented=true;}};
-  input.onkeydown(event);
-  for(const listener of h.keydown)listener(event);
-  await tick();
-  assert.equal(h.calls.length,0);assert.equal(h.eval('tasks().length'),2);
-  assert.equal(h.eval('tasks()[1].status'),'completed');assert.equal(input.value,'Draft task');
-  for(const listener of h.keydown)listener({...event,target:{matches:()=>false,closest:()=>null}});
-  await tick();assert.equal(h.calls.length,0);
+  input.onkeydown(event);for(const listener of h.keydown)listener(event);await tick();
+  assert.equal(event.defaultPrevented,true);assert.equal(h.calls.length,1);assert.equal(h.eval('tasks().length'),2);
+  assert.equal(h.eval('tasks()[1].status'),'needsAction');assert.equal(h.eval('tasks()[1].hidden'),false);
+  assert.equal(input.value,'Draft task');assert.match(h.calls[0].path,/\/tasks\/b$/);
+  assert.deepEqual({...h.calls[0].body},{status:'needsAction'});
+  h.calls[0].resolve({});await tick();
 });
 
 test('failures retain optimistic edits and dependent writes, persist the draft, and pause until explicit retry',async()=>{

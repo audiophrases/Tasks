@@ -16,6 +16,23 @@ function hasSelectedText(target) {
   return Boolean(window.getSelection()?.toString());
 }
 
+async function reopenLastCompleted(focused) {
+  const scope = focused && (focused.parent || focused.id);
+  let latest, latestTime = -Infinity;
+  for (const task of ordered()) {
+    if (task.status !== 'completed' || task.deleted) continue;
+    if (scope && task.id !== scope && task.parent !== scope) continue;
+    const completedTime = Date.parse(task.completed) || 0;
+    if (completedTime >= latestTime) { latest = task; latestTime = completedTime; }
+  }
+  if (!latest) {
+    notify(scope ? 'No completed tasks to reopen in this group' : 'No completed tasks to reopen');
+    return;
+  }
+  await patch(latest, {status: 'needsAction'});
+  notify(latest.parent ? 'Subtask reopened' : 'Task reopened');
+}
+
 function handleTaskShortcut(event) {
   const row = event.target.closest('.row');
   if (!row || event.isComposing) return false;
@@ -49,21 +66,24 @@ function handleTaskShortcut(event) {
     return true;
   }
   const reopen = event.key === 'Enter' && event.altKey && event.shiftKey && !modifier;
+  if (reopen) {
+    event.preventDefault();
+    if (!busy && !event.repeat) void run(() => reopenLastCompleted(task));
+    return true;
+  }
   const done = event.key === 'Enter' && (
     (event.altKey && !modifier && !event.shiftKey) ||
     (modifier && event.shiftKey && !event.altKey)
   );
-  if (!done && !reopen) return false;
+  if (!done) return false;
   event.preventDefault();
   if (busy || event.repeat) return true;
-  if (reopen && (task.status !== 'completed' || task.deleted)) return true;
   const title = taskText(row, task).trim();
   void run(async () => {
     await patch(task, {
       ...(title && title !== task.title ? {title} : {}),
       status: task.status === 'completed' ? 'needsAction' : 'completed',
     });
-    if (reopen) notify(task.parent ? 'Subtask reopened' : 'Task reopened');
     const visible = visibleTasks();
     if (!visible.includes(task)) {
       const index = ordered().indexOf(task);

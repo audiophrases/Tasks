@@ -41,59 +41,65 @@ test('task shortcuts in a browser',async t=>{
       });
       await page.goto(url,{waitUntil:'networkidle'});
       const cases=[
-        {id:'task',status:'needsAction'},
-        {id:'subtask',status:'needsAction'},
-        {id:'cleared-task',status:'needsAction'},
-        {id:'cleared-subtask',status:'needsAction'},
-        {id:'cleared-subtask',status:'needsAction',key:'Alt+Shift+Enter'},
-        {id:'unfinished',status:'needsAction',noWrite:true},
-        {id:'cleared-subtask',status:'needsAction',key:'Alt+Enter'},
-        {id:'quick',noWrite:true},
+        {id:'task',reopen:['latest']},
+        {id:'subtask',reopen:['latest']},
+        {id:'task',reopen:['latest'],cleared:true},
+        {id:'subtask',reopen:['latest'],cleared:true},
+        {id:'subtask',reopen:['latest','older'],cleared:true,draft:true},
+        {id:'subtask',reopen:['latest'],key:'Alt+Shift+Enter'},
+        {id:'empty',reopen:[]},
+        {id:'quick',reopen:['standalone'],cleared:true},
       ];
       for(const scenario of cases){
-        await t.test(`${scenario.key||'Shift+Alt+Enter'} on ${scenario.id}`,async()=>{
+        await t.test((scenario.key||'Shift+Alt+Enter')+' from '+scenario.id+(scenario.cleared?' with cleared completions':'')+(scenario.draft?' while editing, twice':''),async()=>{
           writes.length=0;
-          await page.evaluate(()=>{
-            token='browser-test-only';expires=Date.now()+3600000;list='L';busy=false;showCompleted=true;selected=null;
+          await page.evaluate(cleared=>{
+            token='browser-test-only';expires=Date.now()+3600000;list='L';busy=false;showCompleted=false;selected=null;
             data={lists:[{id:'L',title:'Browser test'}],tasks:{L:[
-              {id:'task',title:'Completed task',status:'completed'},
-              {id:'subtask',title:'Completed subtask',status:'completed',parent:'task'},
-              {id:'other',title:'Other completed subtask',status:'completed',parent:'task'},
-              {id:'unfinished',title:'Unfinished task',status:'needsAction'},
-              {id:'archive',title:'Archive',status:'needsAction'},
-              {id:'cleared-task',title:'Cleared archived task',status:'completed',hidden:true},
-              {id:'cleared-subtask',title:'Cleared archived subtask',status:'completed',hidden:true,parent:'cleared-task'},
+              {id:'task',title:'Current task',status:'needsAction'},
+              {id:'subtask',title:'Current subtask',status:'needsAction',parent:'task'},
+              {id:'older',title:'Older completed subtask',status:'completed',completed:'2026-10-28T09:00:00Z',parent:'task'},
+              {id:'latest',title:'Latest completed subtask',status:'completed',completed:'2026-10-28T10:00:00Z',parent:'task',hidden:cleared},
+              {id:'empty',title:'Group without completed tasks',status:'needsAction'},
+              {id:'other-project',title:'Another task group',status:'needsAction'},
+              {id:'foreign',title:'Newer completion in another group',status:'completed',completed:'2026-10-28T11:00:00Z',parent:'other-project'},
+              {id:'standalone',title:'Newest top-level completion',status:'completed',completed:'2026-10-28T12:00:00Z',hidden:cleared},
             ]}};
             $('#modal').close();render();
             window.shortcutEvents=[];
             document.onkeydown=event=>{if(event.key==='Enter')window.shortcutEvents.push({alt:event.altKey,shift:event.shiftKey,trusted:event.isTrusted});};
-          });
-          const selector=scenario.id==='quick'?'#quick':`.row[data-id="${scenario.id}"] .title`;
-          await page.locator(selector).focus();
+          },Boolean(scenario.cleared));
+          const selector=scenario.id==='quick'?'#quick':'.row[data-id="'+scenario.id+'"] .title';
+          const input=page.locator(selector);
+          await input.click();
+          if(scenario.draft||scenario.id==='quick')await input.fill('Draft being edited');
+          const draft=await input.inputValue();
           await page.evaluate(()=>document.activeElement.setSelectionRange(2,5));
-          await page.keyboard.press(scenario.key||'Shift+Alt+Enter');
-          await page.waitForFunction(()=>!busy&&!syncPending());
-          const actual=await page.evaluate(id=>({
-            status:tasks().find(task=>task.id===id)?.status,
-            active:document.activeElement.closest('.row')?.dataset.id||document.activeElement.id,
-            caret:[document.activeElement.selectionStart,document.activeElement.selectionEnd],
-            others:tasks().filter(task=>task.id!==id&&task.status==='needsAction').map(task=>task.id),
-            count:tasks().length,keys:window.shortcutEvents,
-          }),scenario.id);
-          assert.equal(actual.status,scenario.status);
-          assert.equal(actual.active,scenario.id);
-          if(scenario.id!=='quick')assert.deepEqual(actual.caret,[2,5]);
-          assert.equal(actual.count,7);
-          assert.deepEqual(actual.others,scenario.id==='unfinished'?['archive']:['unfinished','archive']);
-          assert.equal(actual.keys.length,1);assert.equal(actual.keys[0].trusted,true);
-          assert.equal(actual.keys[0].alt,true);assert.equal(actual.keys[0].shift,scenario.key!=='Alt+Enter');
-          if(scenario.noWrite)assert.deepEqual(writes,[]);
-          else{
-            assert.equal(writes.length,1);assert.equal(writes[0].method,'PATCH');
-            assert.ok(writes[0].url.endsWith(`/tasks/${scenario.id}`));
-            assert.deepEqual(writes[0].body,{status:'needsAction'});
+          for(const [index,id] of (scenario.reopen.length?scenario.reopen:[null]).entries()){
+            if(id)assert.equal(await page.locator('.row[data-id="'+id+'"]').count(),0);
+            await page.keyboard.press(scenario.key||'Shift+Alt+Enter');
+            await page.waitForFunction(()=>!busy&&!syncPending());
+            const actual=await page.evaluate(()=>({
+              active:document.activeElement.closest('.row')?.dataset.id||document.activeElement.id,
+              caret:[document.activeElement.selectionStart,document.activeElement.selectionEnd],
+              reopened:tasks().filter(task=>task.status==='needsAction'&&!['task','subtask','empty','other-project'].includes(task.id)).map(task=>task.id),
+              count:tasks().length,showCompleted,keys:window.shortcutEvents,
+            }));
+            assert.equal(actual.active,scenario.id);assert.deepEqual(actual.caret,[2,5]);
+            assert.equal(await input.inputValue(),draft);assert.equal(actual.count,8);assert.equal(actual.showCompleted,false);
+            assert.deepEqual(actual.reopened.sort(),scenario.reopen.slice(0,index+1).sort());
+            assert.equal(actual.keys.length,index+1);assert.equal(actual.keys[index].trusted,true);
+            assert.equal(actual.keys[index].alt,true);assert.equal(actual.keys[index].shift,true);
+            const reopenWrites=writes.filter(write=>write.body?.status==='needsAction');
+            if(!id){assert.deepEqual(reopenWrites,[]);assert.match(await page.locator('#toast').innerText(),/No completed tasks.*group/);}
+            else{
+              assert.equal(reopenWrites.length,index+1);assert.equal(reopenWrites[index].method,'PATCH');
+              assert.ok(reopenWrites[index].url.endsWith('/tasks/'+id));
+              assert.deepEqual(reopenWrites[index].body,{status:'needsAction'});
+              assert.equal(await page.locator('.row[data-id="'+id+'"]').isVisible(),true);
+            }
+            assert.deepEqual(errors,[]);
           }
-          assert.deepEqual(errors,[]);
         });
       }
     });
