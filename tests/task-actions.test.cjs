@@ -140,8 +140,18 @@ test('reopen outside any task leaves completed tasks alone',()=>{
   assert.equal(h.patches.length,0);assert.equal(h.prevented,false);assert.deepEqual(h.focused,[]);
 });
 
-test('reopen ignores cleared or deleted tasks, held keys, composition and busy operations',()=>{
-  for(const options of [{hidden:true},{deleted:true},{repeat:true},{isComposing:true},{busy:true}]){
+test('reopen works on a focused cleared completed task or subtask',async()=>{
+  for(const parent of [undefined,'p']){
+    const h=harness({archived:true});
+    Object.assign(h.task,{status:'completed',hidden:true,...(parent?{parent}:{})});
+    assert.equal(h.context.handleTaskShortcut(h.event(reopenKey)),true);await h.work;
+    assert.equal(h.task.status,'needsAction');assert.equal(h.patches.length,1);
+    assert.deepEqual(h.focused,[]);
+  }
+});
+
+test('reopen ignores deleted tasks, held keys, composition and busy operations',()=>{
+  for(const options of [{deleted:true},{repeat:true},{isComposing:true},{busy:true}]){
     const h=harness({busy:options.busy});
     Object.assign(h.task,{status:'completed',hidden:options.hidden,deleted:options.deleted});
     h.context.handleTaskShortcut(h.event({...reopenKey,repeat:options.repeat,isComposing:options.isComposing}));

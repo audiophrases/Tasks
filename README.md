@@ -48,6 +48,8 @@ Run `node --check docs/app.js`, `node --check docs/auth.js`, and `node --test te
 
 Run the full regression suite with `node --test tests/*.test.cjs`.
 
+With Playwright and Chromium installed, run `node --test tests/browser-shortcuts.cjs` for browser keyboard checks. `TASKFLOW_BROWSER_CHANNELS=chrome,msedge` selects installed Chrome and Edge; `TASKFLOW_TEST_URL` can target the published app. These checks use isolated test tasks and mock all Google API responses. They verify browser key delivery, the exact task reopened, the outgoing PATCH, and focus/caret preservation, including cleared completed rows displayed under Archive. Browser automation does not test operating-system keyboard interception or an authenticated Google write.
+
 The task board fills the available width, and task/subtask titles wrap and expand automatically as you type or change text size. The entire sidebar is collapsed by default; use the top-left menu button to open it. Task text size and help are directly available in the sidebar. Alt + L works with the sidebar hidden. The choice is saved in this browser. Cleared Google tasks are excluded from insertion and movement references; move arrows follow visible tasks.
 
 A top-level task named **Archive** (case insensitive) starts a grey section containing that task and every project below it. Projects appear indented under Archive and retain their original subtasks. Completed subtasks, including cleared ones, appear only when **Show completed** is selected. Archived project headings remain visible. This grouping is visual; Google parent relationships are preserved. Moving a project above Archive returns it to its own colored group. List previews follow the same rule.
@@ -61,7 +63,7 @@ New tasks and subtasks start with an empty title when created with Enter, the su
 - Tab / Shift + Tab anywhere in a task title: indent / outdent
 - Alt + Up / Down: reorder; subtasks move within their group and into the adjacent parent group at a boundary
 - Alt + Enter (or Ctrl/Cmd + Shift + Enter): complete / reopen the focused task
-- Alt + Shift + Enter: reopen the completed task or subtask with the cursor or keyboard focus, keeping the cursor in place. Does nothing on an unfinished task or outside a task. Cleared tasks are not reopened
+- Alt + Shift + Enter: reopen the completed task or subtask with the cursor or keyboard focus, keeping the cursor in place. This includes cleared completed rows displayed under Archive. Does nothing on an unfinished task or outside a task
 - Ctrl/Cmd + Delete: move the focused task and its subtasks to Deleted; inside Deleted, permanently delete them without confirmation (Mac also supports Cmd + Backspace)
 - Ctrl/Cmd + Z: undo the latest task change: completing or reopening, reordering, indenting, dragging, adding, moving to Deleted (restores subtasks and position), or a title edit. Undo switches to the list where the change happened and syncs the reversal to Google like any other edit. In the field you are typing in, the browser's text undo runs first. Permanent deletes in Deleted cannot be undone. The last 100 changes are kept for the open tab and cleared on sign-out.
 - Shift + click: select the range of visible tasks and subtasks from the previous selection anchor

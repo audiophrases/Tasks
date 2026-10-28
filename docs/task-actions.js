@@ -56,7 +56,7 @@ function handleTaskShortcut(event) {
   if (!done && !reopen) return false;
   event.preventDefault();
   if (busy || event.repeat) return true;
-  if (reopen && (task.status !== 'completed' || task.deleted || task.hidden)) return true;
+  if (reopen && (task.status !== 'completed' || task.deleted)) return true;
   const title = taskText(row, task).trim();
   void run(async () => {
     await patch(task, {
