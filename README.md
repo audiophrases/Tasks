@@ -61,6 +61,7 @@ New tasks and subtasks start with an empty title when created with Enter, the su
 - Tab / Shift + Tab anywhere in a task title: indent / outdent
 - Alt + Up / Down: reorder; subtasks move within their group and into the adjacent parent group at a boundary
 - Alt + Enter (or Ctrl/Cmd + Shift + Enter): complete / reopen the focused task
+- Alt + Shift + Enter: reopen the most recently completed subtask of the focused task (or of the focused subtask's parent), one per press. With focus outside any task, it reopens the most recently completed task or subtask in the list. Cleared tasks are not reopened
 - Ctrl/Cmd + Delete: move the focused task and its subtasks to Deleted; inside Deleted, permanently delete them without confirmation (Mac also supports Cmd + Backspace)
 - Ctrl/Cmd + Z: undo the latest task change: completing or reopening, reordering, indenting, dragging, adding, moving to Deleted (restores subtasks and position), or a title edit. Undo switches to the list where the change happened and syncs the reversal to Google like any other edit. In the field you are typing in, the browser's text undo runs first. Permanent deletes in Deleted cannot be undone. The last 100 changes are kept for the open tab and cleared on sign-out.
 - Shift + click: select the range of visible tasks and subtasks from the previous selection anchor

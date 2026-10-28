@@ -16,6 +16,28 @@ function hasSelectedText(target) {
   return Boolean(window.getSelection()?.toString());
 }
 
+// With a scope (a parent task id) only that task's subtasks are considered.
+function lastCompletedTask(scope) {
+  let last;
+  for (const task of ordered()) {
+    if (task.status !== 'completed' || task.deleted || task.hidden || (scope && task.parent !== scope)) continue;
+    if (!last || (task.completed || '') >= (last.completed || '')) last = task;
+  }
+  return last;
+}
+
+async function reopenLastCompleted(focused) {
+  const task = lastCompletedTask(focused && (focused.parent || focused.id));
+  if (!task) {
+    notify(focused ? 'No completed subtasks to reopen here' : 'No completed tasks to reopen');
+    return;
+  }
+  await patch(task, {status: 'needsAction'});
+  notify(task.parent ? 'Subtask reopened' : 'Task reopened');
+  // Keep the caret where it is when working inside a task.
+  if (!focused) focus(task.id);
+}
+
 function handleTaskShortcut(event) {
   const row = event.target.closest('.row');
   if (!row || event.isComposing) return false;
@@ -46,6 +68,12 @@ function handleTaskShortcut(event) {
     if (hasSelectedText(event.target)) return false;
     event.preventDefault();
     void copyTaskText(row, task);
+    return true;
+  }
+  if (event.key === 'Enter' && event.altKey && event.shiftKey && !modifier) {
+    event.preventDefault();
+    if (busy || event.repeat) return true;
+    void run(() => reopenLastCompleted(task));
     return true;
   }
   const done = event.key === 'Enter' && (
