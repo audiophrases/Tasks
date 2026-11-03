@@ -22,7 +22,9 @@ To activate persistence, add the existing Google Web OAuth client's **client sec
 
 After adding the secret, refresh Taskflow and connect once more. Google authorization-code popup mode supplies a refresh token to the server. No additional redirect endpoint is needed; the code exchange uses the existing authorized JavaScript origin `https://audiophrases.github.io`.
 
-Refresh/access credentials are encrypted with an application-specific HKDF-derived AES-GCM key and saved under the private `__taskflow_sessions_v1__/` R2 prefix. The browser saves only a random revocable session handle. Sessions have a 90-day maximum lifetime; invalid/revoked/expired sessions require reconnecting. Google apps still in Testing can have shorter provider-imposed refresh-token lifetimes. Configure an R2 lifecycle rule scoped to this prefix to purge records after 90 days. Signing out removes the browser handle and deletes its server record without revoking the shared Pinplay Google grant.
+Refresh/access credentials are encrypted with an application-specific HKDF-derived AES-GCM key and saved under the private `__taskflow_sessions_v1__/` R2 prefix. The browser saves only a random revocable session handle. Sessions expire after 90 days without renewal; each successful Google token refresh starts a new 90-day window and updates the browser's saved expiry, so regular use keeps the connection alive. Existing valid sessions renew automatically. Invalid/revoked/expired sessions still require reconnecting. Google apps still in [Testing have a seven-day refresh-token lifetime](https://developers.google.com/identity/protocols/oauth2#expiration); that provider limit requires changing the OAuth app's publishing status in Google Auth Platform. Configure an R2 lifecycle rule scoped to this prefix to purge records 90 days after their last write. Signing out removes the browser handle and deletes its server record without revoking the shared Pinplay Google grant.
+
+Temporary connection or server failures keep the saved session and retry every minute while the tab is visible, when returning to the tab, and when the browser comes back online. Refresh also retries the saved connection. A failed persistence-configuration check offers Retry sign-in instead of silently switching Remember me to a one-hour browser token.
 
 Until the secret is configured, the existing short-lived browser token flow remains available; it does not provide persistence. Runtime `/api/taskflow/config` reports `persistentSessions: true` only when the required server bindings exist. Real Google code exchange and refresh still require an account-authorized live check after setup.
 
@@ -47,6 +49,8 @@ The status shows syncing, synced, or pending changes. A failed write pauses the 
 Run `node --check docs/app.js`, `node --check docs/auth.js`, and `node --test tests/auth.test.cjs`.
 
 Run the full regression suite with `node --test tests/*.test.cjs`.
+
+With Playwright and Chromium installed, run `node --test tests/browser-session.cjs` for saved-session restoration, temporary-outage recovery, and revoked-session login checks using mocked Google/backend responses. Set `TASKFLOW_BROWSER_CHANNELS=chrome` to use installed Chrome.
 
 With Playwright and Chromium installed, run `node --test tests/browser-shortcuts.cjs` for browser keyboard checks. `TASKFLOW_BROWSER_CHANNELS=chrome,msedge` selects installed Chrome and Edge; `TASKFLOW_TEST_URL` can target the published app. These checks keep Show completed off, edit an unfinished task or subtask, and reopen hidden completions in that group newest first. They verify the outgoing PATCH, restored row visibility, unchanged unrelated groups, and focus/caret preservation. Test tasks and Google API responses are isolated mocks; browser automation does not test operating-system keyboard interception or an authenticated Google write.
 

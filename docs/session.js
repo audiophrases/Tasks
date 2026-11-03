@@ -59,9 +59,12 @@ async function sessionRequest(path, {handle, body} = {}) {
 async function persistentSessionConfig() {
   try {
     const response=await fetch(SESSION_API+'/config',{credentials:'omit',cache:'no-store',signal:AbortSignal.timeout(10000)});
-    if(response.ok)return await response.json();
+    if(response.ok) {
+      const config=await response.json();
+      if(typeof config.persistentSessions==='boolean')return config;
+    }
   } catch {}
-  return {persistentSessions:false};
+  throw Error('Could not check saved sign-in. Check your connection and retry.');
 }
 
 function applySessionToken(result) {
@@ -100,11 +103,17 @@ async function ensureGoogleSession() {
     sessionRenewal=(async()=>{
       try {
         const result=await sessionRequest('/session',{handle:saved.handle});
-        if(generation!==sessionGeneration)throw Error('You have signed out.');
+        const current=savedGoogleSession();
+        if(generation!==sessionGeneration||current?.handle!==saved.handle)throw Error('Your saved connection changed.');
         applySessionToken(result);
+        if(Number.isFinite(result.session_expires_at)&&result.session_expires_at>current.expiresAt) {
+          // Preserve cache ownership and never restore a handle removed by sign-out.
+          try { localStorage.setItem(SESSION_KEY,JSON.stringify({...current,expiresAt:result.session_expires_at})); } catch {}
+        }
       } catch(error) {
-        if(error.status===401&&generation===sessionGeneration) {
+        if(error.status===401&&generation===sessionGeneration&&savedGoogleSession()?.handle===saved.handle) {
           localStorage.removeItem(SESSION_KEY);token=null;expires=0;
+          clearTaskCache();
         }
         throw error;
       } finally { sessionRenewal=null; }
@@ -116,8 +125,17 @@ async function ensureGoogleSession() {
 function startGoogleRefresh() {
   clearInterval(refreshTimer);
   refreshTimer=setInterval(()=>{
-    if(!busy&&document.visibilityState==='visible'&&(savedGoogleSession()||Date.now()<expires))void backgroundRefresh();
+    if(!busy&&document.visibilityState==='visible'&&(savedGoogleSession()||Date.now()<expires))void refreshGoogleConnection();
   },60000);
+}
+
+async function refreshGoogleConnection() {
+  if(busy)return;
+  if(!token&&savedGoogleSession()) {
+    const retrying=await restoreGoogleSession();
+    if(!token&&!retrying)await connection();
+  } else if(token)await backgroundRefresh();
+  else await connection();
 }
 
 async function forgetGoogleSession() {
@@ -144,14 +162,20 @@ async function restoreGoogleSession() {
       focusTaskList();
       void backgroundRefresh();
     }else await reload();
-    startGoogleRefresh();
   } catch(error) {
-    token=null;expires=0;
+    const retrying=Boolean(savedGoogleSession());
+    if(!retrying&&(!token||expires<=Date.now())){token=null;expires=0;}
     taskCacheRefreshing=false;
-    notify(error.message);
+    notify(retrying?'Could not reach Google Tasks. Your connection is saved; retrying automatically.':error.message);
     render();
+    if(retrying&&!token) {
+      $('#connection').textContent='Reconnecting to Google Tasks…';
+      $('#status').textContent='Connection interrupted · retrying automatically…';
+    }
+    return retrying;
   } finally {
     busy=false;
     document.body.classList.remove('busy');
+    if(savedGoogleSession()||token)startGoogleRefresh();
   }
 }

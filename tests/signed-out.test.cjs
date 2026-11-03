@@ -4,16 +4,17 @@ const vm=require('node:vm');
 const fs=require('node:fs');
 
 function harness(restore=false,initialTasks=[]){
-  const elements=new Map();let prompts=0;
+  const elements=new Map(),events={};let prompts=0;
   const $=selector=>{if(!elements.has(selector))elements.set(selector,{style:{},listeners:{},focus(){this.focused=true;},addEventListener(name,fn){this.listeners[name]=fn;}});return elements.get(selector);};
-  const context={resizeTaskTitles(){},resizeTaskTitle(){},document:{querySelector:$,querySelectorAll:()=>[],addEventListener(){}},crypto:{},initialTasks,
+  const context={resizeTaskTitles(){},resizeTaskTitle(){},document:{querySelector:$,querySelectorAll:()=>[],addEventListener(name,fn){events[name]=fn;}},window:{addEventListener(name,fn){events[name]=fn;}},crypto:{},initialTasks,
     localStorage:{getItem(){throw Error('Old demo storage must not be read');}},
     connection:async()=>{prompts++;},handleTaskShortcut(){},syncPending:()=>false,updateSyncStatus(){},syncRevision:0,restoreSyncDraft:()=>null,retrySync(){},
-    restoreGoogleSession:async()=>{if(restore)vm.runInContext("token='restored';data={lists:[{id:'google',title:'Real list'}],tasks:{google:initialTasks}};list='google';render()",context);},
+    savedGoogleSession:()=>restore==='retrying'?{handle:'saved'}:null,
+    restoreGoogleSession:async()=>{if(restore==='retrying')return true;if(restore)vm.runInContext("token='restored';data={lists:[{id:'google',title:'Real list'}],tasks:{google:initialTasks}};list='google';render()",context);},
   };
   vm.createContext(context);
   vm.runInContext(fs.readFileSync('docs/task-view.js','utf8'),context);vm.runInContext(fs.readFileSync('docs/app.js','utf8'),context);
-  return {context,$,get prompts(){return prompts;}};
+  return {context,$,events,get prompts(){return prompts;}};
 }
 
 test('signed-out startup shows sign-in without demo lists or tasks',async()=>{
@@ -33,6 +34,16 @@ test('restored Google session skips login and enables the real workspace',async(
   assert.equal(h.$('#quick').focused,true);
   vm.runInContext('token=null;render()',h.context);
   assert.equal(h.$('#lists').innerHTML,'');assert.equal(h.$('#tasks').innerHTML,'');
+});
+
+test('temporarily interrupted startup waits for recovery instead of opening Google sign-in',async()=>{
+  const h=harness('retrying');await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(h.prompts,0);assert.equal(h.$('#quick').disabled,true);
+  let retries=0;h.context.refreshGoogleConnection=async()=>retries++;
+  h.events.online();
+  h.context.document.visibilityState='visible';h.events.visibilitychange();
+  h.context.syncFailure=null;h.$('#refresh').onclick();
+  assert.equal(retries,3);assert.equal(h.prompts,0);
 });
 
 test('page load selects the first visible task after restoring Google',async()=>{

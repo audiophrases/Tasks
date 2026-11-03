@@ -85,6 +85,15 @@ test('Remember me is optional even when long-lived sessions are configured',asyn
   assert.equal(h.context.token,'current-tab');
 });
 
+test('unavailable session configuration offers retry instead of a short-lived Google login',async()=>{
+  const h=harness({persistent:true});
+  h.context.persistentSessionConfig=async()=>{throw Error('Could not check saved sign-in. Retry.');};
+  await h.context.connection();
+  assert.equal(h.config,undefined);assert.equal(h.request,undefined);
+  assert.equal(h.$('#authorize').textContent,'Retry sign-in');
+  assert.match(h.$('#autherror').textContent,/Retry/);
+});
+
 test('sign out waits for pending background writes instead of losing them',async()=>{
   const h=harness();h.context.token='access';h.context.syncPending=()=>true;
   let logouts=0;h.context.forgetGoogleSession=async()=>logouts++;

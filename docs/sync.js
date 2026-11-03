@@ -163,8 +163,8 @@ async function flushSync(){
     notify('Google sync paused. Your changes are kept in this tab. '+error.message);
   }finally{syncRunning=false;updateSyncStatus();}
 }
-function retrySync(){
-  if(!token){void connection();return;}
+async function retrySync(){
+  if(!token){await refreshGoogleConnection();if(!token)return;}
   const op=syncQueue[0];
   if(op?.inFlight&&(op.kind==='create'||op.kind==='createList')&&!confirm('Google may already have created this item before the connection was interrupted. Check Google Tasks first. Retry creating it?'))return;
   syncFailure=null;updateSyncStatus();void flushSync();

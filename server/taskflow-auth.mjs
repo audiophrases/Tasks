@@ -2,6 +2,7 @@
 // Browser holds an opaque session handle; Google refresh credentials stay encrypted in R2.
 const ORIGIN = 'https://audiophrases.github.io';
 const SCOPE = 'https://www.googleapis.com/auth/tasks';
+// Active connections renew this window; only 90 days of inactivity expires it.
 const TTL = 90 * 24 * 60 * 60 * 1000;
 const PREFIX = '__taskflow_sessions_v1__/';
 const encoder = new TextEncoder();
@@ -126,6 +127,7 @@ export async function handleTaskflowAuth(request, env, fetcher = fetch) {
       record.accessToken=tokens.access_token;
       record.accessExpiresAt=Date.now()+Number(tokens.expires_in)*1000;
       if(tokens.refresh_token)record.refreshToken=tokens.refresh_token;
+      record.expiresAt=Date.now()+TTL;
       await save(env,storageKey,record,object.etag);
     }
     return reply(tokenResponse(record));

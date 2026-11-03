@@ -70,7 +70,7 @@ async function connection() {
     const [config, persistence] = await Promise.all([fetchPinplayConfig(), persistentSessionConfig(), loadGoogleIdentityScript()]);
     if (!button.isConnected) return;
     $('#rememberhint').textContent = persistence.persistentSessions
-      ? 'Stay signed in when you return. You can sign out at any time.'
+      ? 'Stay signed in with automatic renewal while you use Tasks. You can sign out at any time.'
       : 'Remembers this Google session across visits, usually for up to an hour.';
     let usePersistence = false;
     const hint = pinplayAccountHint();

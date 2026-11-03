@@ -42,6 +42,29 @@ test('expired access token renews using server refresh credentials',async()=>{
   assert.equal((await h.call('session',{handle:login.session})).status,200);
   assert.deepEqual(h.grants,['authorization_code','refresh_token']);
 });
+
+test('regular use extends the 90-day session past its original expiry',async t=>{
+  let now=Date.now();t.mock.method(Date,'now',()=>now);
+  const day=86400000,h=harness();
+  const login=await(await h.call('exchange')).json();
+  assert.equal(login.session_expires_at,now+90*day);
+  now+=2*day;
+  const renewed=await(await h.call('session',{handle:login.session})).json();
+  assert.equal(renewed.session_expires_at,now+90*day);
+  now=login.session_expires_at+day;
+  const response=await h.call('session',{handle:login.session});
+  assert.equal(response.status,200);
+  assert.equal((await response.json()).session_expires_at,now+90*day);
+  assert.deepEqual(h.grants,['authorization_code','refresh_token','refresh_token']);
+});
+
+test('90 days without renewal expires the session and cannot revive it',async t=>{
+  let now=Date.now();t.mock.method(Date,'now',()=>now);
+  const h=harness(),login=await(await h.call('exchange')).json();
+  now=login.session_expires_at;
+  assert.equal((await h.call('session',{handle:login.session})).status,401);
+  assert.equal(h.objects.size,0);assert.equal(h.calls,1);
+});
 test('sign out invalidates stored session',async()=>{
   const h=harness();const login=await(await h.call('exchange')).json();
   assert.equal((await h.call('logout',{handle:login.session})).status,200);

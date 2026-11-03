@@ -219,6 +219,29 @@ test('failures retain optimistic edits and dependent writes, persist the draft, 
   assert.equal(h.eval('syncPending()'),false);
 });
 
+test('Retry sync restores the saved connection before sending pending changes',async()=>{
+  const h=harness();
+  await h.context.run(()=>h.context.patch(h.eval('tasks()[0]'),{title:'Keep this edit'}));
+  h.calls[0].reject(Error('Offline'));await tick();h.eval('token=null');
+  let retries=0,prompts=0;
+  h.context.connection=async()=>prompts++;
+  h.context.refreshGoogleConnection=async()=>{retries++;h.eval("token='renewed'");};
+  await h.context.retrySync();
+  assert.equal(retries,1);assert.equal(prompts,0);assert.equal(h.calls.length,2);
+  assert.equal(h.calls[1].body.title,'Keep this edit');
+  h.calls[1].resolve({});await tick();assert.equal(h.eval('syncPending()'),false);
+});
+
+test('Retry sync keeps pending changes paused if the saved connection is still unavailable',async()=>{
+  const h=harness();
+  await h.context.run(()=>h.context.patch(h.eval('tasks()[0]'),{title:'Keep this edit'}));
+  h.calls[0].reject(Error('Offline'));await tick();h.eval('token=null');
+  h.context.refreshGoogleConnection=async()=>{};
+  await h.context.retrySync();
+  assert.equal(h.calls.length,1);assert.equal(h.eval('syncPending()'),true);
+  assert.equal(h.eval('Boolean(syncFailure)'),true);
+});
+
 test('pending drafts restore only after loading the same Google list, and ambiguous creates are not automatically repeated',async()=>{
   const h=harness();await h.context.run(()=>h.context.add('Unsent task'));
   h.calls[0].reject(Error('Connection lost'));await tick();
